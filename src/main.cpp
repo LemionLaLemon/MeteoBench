@@ -46,15 +46,18 @@
 #include <cstdint>
 #include <cstring>
 #include <algorithm>
+#include <qurl.h>
 #include <vector>
 #include <QShortcut>
+#include <QAbstractTableModel>
 
 #include "./wlogV1.h"
+#include "./wlogTableModel.h"
 #include "./struc.h"
 
 std::vector<wlogFileInfo> files;
 
-QString selectedFiles[2] = {
+QStringList selectedFiles = {
     "/home/lemion/Documents/Lemion Industries Meteobench/samplecontent/2026-07-31.wlog",
     "/home/lemion/Documents/Lemion Industries Meteobench/samplecontent/2026-08-01.wlog"
 };
@@ -174,6 +177,7 @@ void About(QWidget *window){
 
 int main(int argc, char *argv[])
 {
+    buildFileIndex(selectedFiles, files);
     // App setup
     QApplication app(argc, argv);
     QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Light);
@@ -221,11 +225,6 @@ int main(int argc, char *argv[])
     QAction *aboutAction = new QAction("&About MeteoBench", &window);
     QObject::connect(aboutAction, &QAction::triggered, [&window](){About(&window);});
 
-    // Append actions to toolbar
-    toolBar->addAction(openAction);
-    toolBar->addAction(validateAction);
-    toolBar->addSeparator();
-
     // Menubar Setup
     QMenuBar *menuBar = window.menuBar();
     QMenu *fileMenu = menuBar->addMenu("&File");
@@ -235,7 +234,6 @@ int main(int argc, char *argv[])
     editMenu->setEnabled(false);
 
     QMenu *viewMenu = menuBar->addMenu("&View");
-    viewMenu->setEnabled(false);
 
     QMenu *recordsMenu = menuBar->addMenu("&Records");
     recordsMenu->addAction(validateAction);
@@ -274,24 +272,36 @@ int main(int argc, char *argv[])
     window.setCentralWidget(tabWidget);
 
     // Temp table
-    QTableWidget *table = new QTableWidget(1, 4, dataTableTab);
+    //QTableWidget *table = new QTableWidget(1, 4, dataTableTab);
+    QTableView *table = new QTableView(dataTableTab);
+    WLogTableModel *model = new WLogTableModel(files, table);
+    table->setModel(model);
+    table->horizontalHeader()->setResizeContentsPrecision(10);
+    table->horizontalHeader()->resizeSections(QHeaderView::ResizeToContents);
+    layout1->addWidget(table);
 
-    table->setHorizontalHeaderLabels({
-        "Timestamp",
-        "Temperature DEG C",
-        "Humdity  %REL",
-        "Pressure hPa"
+    QAction *autoFitAction = viewMenu->addAction(QIcon("src/icons/AutofitColumns.png"), "Auto&Fit Columns");
+
+    QObject::connect(autoFitAction, &QAction::triggered, [table](){
+        table->horizontalHeader()->resizeSections(QHeaderView::ResizeToContents);
     });
 
-    table->setShowGrid(true);
-    table->setGridStyle(Qt::SolidLine);
-    table->setRowCount(100);
-    table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    QAction *normalizeAction = viewMenu->addAction(QIcon("src/icons/NormalizeColumns.png"), "&Normalize Columns");
 
-    table->setItem(0, 0, new QTableWidgetItem("00:00:02"));
-    table->setItem(0, 1, new QTableWidgetItem("28.5"));
+    QObject::connect(normalizeAction, &QAction::triggered, [table](){
+        QHeaderView *header = table->horizontalHeader();
 
-    layout1->addWidget(table);
+        for (int i = 0; i < header->count(); i++){
+            header->resizeSection(i, 130);
+        }
+    });
+
+    // Append actions to toolbar
+    toolBar->addAction(openAction);
+    toolBar->addAction(validateAction);
+    toolBar->addSeparator();
+    toolBar->addAction(autoFitAction);
+    toolBar->addAction(normalizeAction);
 
     window.show();
 

@@ -14,6 +14,7 @@ qt_standard_project_setup()
 
 qt_add_executable(meteobench
     src/main.cpp
+    src/wlogTableModel.cpp 
 )
 
 target_compile_options(meteobench PRIVATE -Wall -Wextra)

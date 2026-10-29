@@ -9,6 +9,7 @@ QToolBar {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #d8e6f6, stop:1 #cbddf3);
     border-bottom: 1px solid #8baee0;
     spacing: 3px;
+    padding: 2px;
 }
 QToolBar::separator {
     background: #8baee0;
