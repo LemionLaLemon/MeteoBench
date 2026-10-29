@@ -1,0 +1,34 @@
+{
+    "header": {
+        "magic": "WLOG",
+        "version": 1,
+        "recordSize": 20
+    },
+    "record": [
+        {
+            "name": "timestamp",
+            "type": "uint64",
+            "unit": "epoch_seconds"
+        },
+        {
+            "name": "temperature",
+            "type": "float",
+            "unit": "degc"
+        },
+        {
+            "name": "humidity",
+            "type": "float",
+            "unit": "%rel"
+        },
+        {
+            "name": "pressure",
+            "type": "float",
+            "unit": "hpa"
+        }
+    ],
+    "encoding": {
+        "endian": "little",
+        "floatStandard": "IEEE754",
+        "floatSize": 32
+    }
+}

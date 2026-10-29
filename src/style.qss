@@ -1,0 +1,114 @@
+QTabBar::tab:focus{
+    outline: none;
+}
+QMainWindow {
+    background-color: #ffffff;
+    color: #000000;
+}
+QToolBar {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #d8e6f6, stop:1 #cbddf3);
+    border-bottom: 1px solid #8baee0;
+    spacing: 3px;
+}
+QToolBar::separator {
+    background: #8baee0;
+    width: 1px;
+    margin: 4px 5px;
+}
+QMenuBar{
+    color: #000000;
+    background: #dfe8f6;
+    border-bottom: 1px solid #8baee0;
+}
+QMenuBar::item:selected{
+    background: #cbddf3;
+}
+QMenuBar::item:disabled{
+    color: #909090;
+}
+QMenu{
+    color: #000000;
+    background-color: #f5f8ff;
+    border: 1px solid #8baee0;
+    padding: 2px;
+}
+QMenu::item:selected{
+    background: #cbddf3;
+    color: #17418c;
+}
+QMenu::item:disabled{
+    color: #909090;
+}
+QMenu::separator{
+    height: 1px;
+    background: #8baee0;
+    margin: 4px 6px;
+}
+QTabWidget::pane{
+    background: #dfe8f6;
+    border: 1px solid #8baee0;
+    top: -1px;
+}
+QTabBar::tab{
+    color: #2456a6;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #eaf2ff, stop:1 #cbddf3);
+    border: 1px solid #8baee0;
+    border-bottom: 1px solid #8baee0;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+    padding: 3px 6px;
+    margin: 0;
+    font-weight: bold;
+}
+QTabBar::tab:selected{
+    background: #dfe8f6;
+    color: #17418c;
+    border-bottom: 1px solid #dfe8f6;
+    margin-bottom: -1px;
+    outline: none;
+}
+QTabWidget{
+
+}
+QHeaderView::section{
+    color: #000000;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffffff, stop:1 #d8e6f6);
+    border: 1px solid #a6bbd8;
+}
+QScrollBar{
+
+}
+QWidget{
+    background-color: #dfe8f6;
+}
+QTableWidget{
+    color: #000000;
+    background-color: #ffffff;
+    selection-background-color: #316ac5;
+    selection-color: #ffffff;
+}
+
+/* about */
+QMessageBox{
+    background-color: #dfe8f6;
+    color: #000000;
+    border: 1px solid #8baee0;
+}
+QMessageBox QLabel{
+    background: transparent;
+    color: #000000;
+}
+QMessageBox QPushButton{
+    color: #000000;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffffff, stop:1 #cbddf3);
+    border: 1px solid #8baee0;
+    border-radius: 2px;
+    padding: 4px 14px;
+    min-width: 65px;
+}
+QMessageBox QPushButton:hover{
+    background: #d8e6f6;
+}
+QMessageBox QPushButton:pressed{
+    background: #b5cbe8;
+}
