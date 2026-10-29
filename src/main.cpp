@@ -13,6 +13,7 @@
 #include <QTabWidget>
 #include <QLabel>
 #include <qboxlayout.h>
+#include <qbrush.h>
 #include <qcoreapplication.h>
 #include <qlogging.h>
 #include <qmenubar.h>
@@ -98,7 +99,7 @@ bool openWlog(const QString &path, wlogFileInfo &info){
     if (!file.open(QIODevice::ReadOnly)) { 
         return false; 
     }
-    if (file.size() < sizeof(wlogv1::header)) { 
+    if (file.size() < static_cast<qint64>(sizeof(wlogv1::header))) { 
         return false; 
     }
 
@@ -178,6 +179,84 @@ void About(QWidget *window){
     );
 };
 
+void drawDataTableTab(QWidget *dataTableTab, const std::vector<wlogFileInfo> &files, QMenu *viewMenu, QMenu *recordsMenu, QToolBar *toolBar, QTabWidget *tabWidget){
+    QVBoxLayout *layout = new QVBoxLayout(dataTableTab);
+
+    QTableView *table = new QTableView(dataTableTab);
+    WLogTableModel *model = new WLogTableModel(files, table);
+
+    table->setModel(model);
+
+    FileHeader *fileHeader = new FileHeader(table);
+    table->setVerticalHeader(fileHeader);
+    table->horizontalHeader()->setResizeContentsPrecision(10);
+    table->horizontalHeader()->resizeSections(QHeaderView::ResizeToContents);
+    table->verticalHeader()->setFixedWidth(160);
+
+    layout->addWidget(table);
+
+    QAction *autoFitAction = viewMenu->addAction(QIcon("src/icons/AutofitColumns.png"), "Auto&Fit Columns");
+
+    QObject::connect(autoFitAction, &QAction::triggered, [table](){
+        table->horizontalHeader()->resizeSections(QHeaderView::ResizeToContents);
+    });
+
+    QAction *normalizeAction = viewMenu->addAction(QIcon("src/icons/NormalizeColumns.png"), "&Normalize Columns");
+
+    QObject::connect(normalizeAction, &QAction::triggered, [table](){
+        QHeaderView *header = table->horizontalHeader();
+
+        for (int i = 0; i < header->count(); i++){
+            header->resizeSection(i, 60);
+        }
+    });
+
+    QAction *jumpToPreviousFileAction = recordsMenu->addAction(QIcon("src/icons/JumpToPreviousFile.png"), "Jump to &Previous File");
+    QAction *jumpToNextFileAction = recordsMenu->addAction(QIcon("src/icons/JumpToNextFile.png"), "Jump to &Next File");
+
+    QObject::connect(jumpToPreviousFileAction, &QAction::triggered, [table, model, &files](){
+        int currentRow = table->rowAt(0);
+        
+        for (int i = static_cast<int>(files.size()) - 1; i >= 0; i--){
+            if (files[i].firstRow < static_cast<uint64_t>(currentRow)){
+                table->scrollTo(
+                    model->index(static_cast<int>(files[i].firstRow), 0),
+                    QAbstractItemView::PositionAtTop
+                );
+                break;
+            }
+        }
+    });
+
+    QObject::connect(jumpToNextFileAction, &QAction::triggered, [table, model, &files](){
+        int currentRow = table->rowAt(0);
+        
+        for (size_t i = 0; i < files.size(); i++){
+            if (files[i].firstRow > static_cast<uint64_t>(currentRow)){
+                table->scrollTo(
+                    model->index(static_cast<int>(files[i].firstRow), 0),
+                    QAbstractItemView::PositionAtTop
+                );
+                break;
+            }
+        }
+    });
+
+    toolBar->addAction(autoFitAction);
+    toolBar->addAction(normalizeAction);
+    QAction *separator = toolBar->addSeparator();
+    toolBar->addAction(jumpToPreviousFileAction);
+    toolBar->addAction(jumpToNextFileAction);
+
+    QObject::connect(tabWidget, &QTabWidget::currentChanged, [=](int index){
+        autoFitAction->setVisible(index == 0);
+        normalizeAction->setVisible(index == 0);
+        separator->setVisible(index == 0);
+        jumpToPreviousFileAction->setVisible(index == 0);
+        jumpToNextFileAction->setVisible(index == 0);
+    });
+}
+
 int main(int argc, char *argv[])
 {
     buildFileIndex(selectedFiles, files);
@@ -256,7 +335,6 @@ int main(int argc, char *argv[])
     tabWidget->tabBar()->setCursor(Qt::PointingHandCursor);
 
     QWidget *dataTableTab = new QWidget();
-    QVBoxLayout *layout1 = new QVBoxLayout(dataTableTab);
 
     QWidget *plotsTab = new QWidget();
     QVBoxLayout *layout2 = new QVBoxLayout(plotsTab);
@@ -274,79 +352,12 @@ int main(int argc, char *argv[])
 
     window.setCentralWidget(tabWidget);
 
-    // Temp table
-    //QTableWidget *table = new QTableWidget(1, 4, dataTableTab);
-    QTableView *table = new QTableView(dataTableTab);
-    WLogTableModel *model = new WLogTableModel(files, table);
-    table->setModel(model);
-    FileHeader *fileHeader = new FileHeader(table);
-    table->setVerticalHeader(fileHeader);
-    table->horizontalHeader()->setResizeContentsPrecision(10);
-    table->horizontalHeader()->resizeSections(QHeaderView::ResizeToContents);
-    table->verticalHeader()->setFixedWidth(160);
-    layout1->addWidget(table);
-
-    QAction *autoFitAction = viewMenu->addAction(QIcon("src/icons/AutofitColumns.png"), "Auto&Fit Columns");
-
-    QObject::connect(autoFitAction, &QAction::triggered, [table](){
-        table->horizontalHeader()->resizeSections(QHeaderView::ResizeToContents);
-    });
-
-    QAction *normalizeAction = viewMenu->addAction(QIcon("src/icons/NormalizeColumns.png"), "&Normalize Columns");
-
-    QObject::connect(normalizeAction, &QAction::triggered, [table](){
-        QHeaderView *header = table->horizontalHeader();
-
-        for (int i = 0; i < header->count(); i++){
-            header->resizeSection(i, 60);
-        }
-    });
-
-    QAction *jumpToPreviousFileAction = recordsMenu->addAction(QIcon("src/icons/JumpToPreviousFile.png"), "Jump to &Previous File");
-    QAction *jumpToNextFileAction = recordsMenu->addAction(QIcon("src/icons/JumpToNextFile.png"), "Jump to &Next File");
-
-    QObject::connect(jumpToPreviousFileAction, &QAction::triggered, [table, model](){
-        int currentRow = table->rowAt(0);
-        
-        for (int i = static_cast<int>(files.size()) - 1; i >= 0; i--){
-            if (files[i].firstRow < static_cast<uint64_t>(currentRow)){
-                table->scrollTo(
-                    model->index(static_cast<int>(files[i].firstRow), 0),
-                    QAbstractItemView::PositionAtTop
-                );
-                break;
-            }
-        }
-    });
-
-    QObject::connect(jumpToNextFileAction, &QAction::triggered, [table, model](){
-        int currentRow = table->rowAt(0);
-        
-        for (size_t i = 0; i < files.size(); i++){
-            if (files[i].firstRow > static_cast<uint64_t>(currentRow)){
-                table->scrollTo(
-                    model->index(static_cast<int>(files[i].firstRow), 0),
-                    QAbstractItemView::PositionAtTop
-                );
-                break;
-            }
-        }
-    });
-
     // Append actions to toolbar
     toolBar->addAction(openAction);
     toolBar->addAction(validateAction);
     toolBar->addSeparator();
-    toolBar->addAction(autoFitAction);
-    toolBar->addAction(normalizeAction);
-    toolBar->addSeparator();
-    toolBar->addAction(jumpToPreviousFileAction);
-    toolBar->addAction(jumpToNextFileAction);
 
-    QObject::connect(tabWidget, &QTabWidget::currentChanged, [=](int index){
-        autoFitAction->setVisible(index == 0);
-        normalizeAction->setVisible(index == 0);
-    });
+    drawDataTableTab(dataTableTab, files, viewMenu, recordsMenu, toolBar, tabWidget);
 
     window.show();
 
