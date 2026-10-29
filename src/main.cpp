@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <qabstractitemmodel.h>
 #include <qaction.h>
 #include <qapplication.h>
 
@@ -20,6 +21,7 @@
 #include <qobject.h>
 #include <qpalette.h>
 #include <qpicture.h>
+#include <qscroller.h>
 #include <qtabbar.h>
 #include <qtableview.h>
 #include <qtablewidget.h>
@@ -54,6 +56,7 @@
 #include "./wlogV1.h"
 #include "./wlogTableModel.h"
 #include "./struc.h"
+#include "./fileHeader.h"
 
 std::vector<wlogFileInfo> files;
 
@@ -276,8 +279,11 @@ int main(int argc, char *argv[])
     QTableView *table = new QTableView(dataTableTab);
     WLogTableModel *model = new WLogTableModel(files, table);
     table->setModel(model);
+    FileHeader *fileHeader = new FileHeader(table);
+    table->setVerticalHeader(fileHeader);
     table->horizontalHeader()->setResizeContentsPrecision(10);
     table->horizontalHeader()->resizeSections(QHeaderView::ResizeToContents);
+    table->verticalHeader()->setFixedWidth(160);
     layout1->addWidget(table);
 
     QAction *autoFitAction = viewMenu->addAction(QIcon("src/icons/AutofitColumns.png"), "Auto&Fit Columns");
@@ -292,7 +298,38 @@ int main(int argc, char *argv[])
         QHeaderView *header = table->horizontalHeader();
 
         for (int i = 0; i < header->count(); i++){
-            header->resizeSection(i, 130);
+            header->resizeSection(i, 60);
+        }
+    });
+
+    QAction *jumpToPreviousFileAction = recordsMenu->addAction(QIcon("src/icons/JumpToPreviousFile.png"), "Jump to &Previous File");
+    QAction *jumpToNextFileAction = recordsMenu->addAction(QIcon("src/icons/JumpToNextFile.png"), "Jump to &Next File");
+
+    QObject::connect(jumpToPreviousFileAction, &QAction::triggered, [table, model](){
+        int currentRow = table->rowAt(0);
+        
+        for (int i = static_cast<int>(files.size()) - 1; i >= 0; i--){
+            if (files[i].firstRow < static_cast<uint64_t>(currentRow)){
+                table->scrollTo(
+                    model->index(static_cast<int>(files[i].firstRow), 0),
+                    QAbstractItemView::PositionAtTop
+                );
+                break;
+            }
+        }
+    });
+
+    QObject::connect(jumpToNextFileAction, &QAction::triggered, [table, model](){
+        int currentRow = table->rowAt(0);
+        
+        for (size_t i = 0; i < files.size(); i++){
+            if (files[i].firstRow > static_cast<uint64_t>(currentRow)){
+                table->scrollTo(
+                    model->index(static_cast<int>(files[i].firstRow), 0),
+                    QAbstractItemView::PositionAtTop
+                );
+                break;
+            }
         }
     });
 
@@ -302,6 +339,14 @@ int main(int argc, char *argv[])
     toolBar->addSeparator();
     toolBar->addAction(autoFitAction);
     toolBar->addAction(normalizeAction);
+    toolBar->addSeparator();
+    toolBar->addAction(jumpToPreviousFileAction);
+    toolBar->addAction(jumpToNextFileAction);
+
+    QObject::connect(tabWidget, &QTabWidget::currentChanged, [=](int index){
+        autoFitAction->setVisible(index == 0);
+        normalizeAction->setVisible(index == 0);
+    });
 
     window.show();
 

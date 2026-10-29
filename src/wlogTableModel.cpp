@@ -2,12 +2,15 @@
 #include "struc.h"
 #include "wlogV1.h"
 #include <qabstractitemmodel.h>
+#include <qcolor.h>
 #include <qhashfunctions.h>
 #include <qnamespace.h>
 #include <qvariant.h>
 #include "getRecord.h"
 #include <QDateTime>
 #include <cmath>
+#include <QFileInfo>
+#include <QColor>
 
 WLogTableModel::WLogTableModel(const std::vector<wlogFileInfo> &fileIndex, QObject *parent) : QAbstractTableModel(parent), files(fileIndex) {}
 
@@ -34,12 +37,46 @@ int WLogTableModel::columnCount(const QModelIndex &parent) const {
 }
 
 QVariant WLogTableModel::headerData(int section, Qt::Orientation orientation, int role) const {
+    if (orientation == Qt::Vertical && role == Qt::BackgroundRole) {
+        for (size_t i=0; i< files.size(); i++){
+            const auto &file = files[i];
+
+            if (static_cast<uint64_t>(section) >= file.firstRow && static_cast<uint64_t>(section) - file.firstRow < file.recordCount) {
+                static const QColor colors[] = {
+                    QColor("#ff4c4c"),
+                    QColor("#5ce48c"),
+                    QColor("#5f9aff"),
+                    QColor("#ffd75f")
+                };
+                return colors[i % 4];
+            }
+        }
+    }
+
+    if (orientation == Qt::Vertical && role == Qt::UserRole){
+        for (const auto &file : files){
+            uint64_t row = static_cast<uint64_t>(section);
+
+            if (row >= file .firstRow && row - file.firstRow < file.recordCount){
+                return QFileInfo(file.path).fileName();
+            }
+        }
+        return {};
+    }
+    
     if (role != Qt::DisplayRole){
         return {};
     }
 
     if (orientation == Qt::Vertical){
-        return section + 1;
+        for (const auto &file : files){
+            if (static_cast<uint64_t>(section) >= file.firstRow && static_cast<uint64_t>(section) - file.firstRow < file.recordCount) {
+                if (static_cast<uint64_t>(section) == file.firstRow){
+                    return QFileInfo(file.path).fileName();
+                }
+                return QString("\""); // artifact from ancient MeteoBench
+            }
+        }
     }
 
     if (section < 0 || section >= wlogv1::columnCount){
