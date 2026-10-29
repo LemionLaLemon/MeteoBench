@@ -337,10 +337,8 @@ int main(int argc, char *argv[])
     QWidget *dataTableTab = new QWidget();
 
     QWidget *plotsTab = new QWidget();
-    QVBoxLayout *layout2 = new QVBoxLayout(plotsTab);
 
     QWidget *analysisTab = new QWidget();
-    QVBoxLayout *layout3 = new QVBoxLayout(analysisTab);
 
     tabWidget->addTab(dataTableTab, "Data Table");
     tabWidget->addTab(plotsTab, "Plots");
