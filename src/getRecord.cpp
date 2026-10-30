@@ -1,30 +1,32 @@
-#pragma once
 #include "./getRecord.h"
+#include "struc.h"
 #include <QFile>
+#include <algorithm>
 
-inline bool getRecord(uint64_t globalRow, const std::vector<wlogFileInfo> &files, wlogv1::record &output){
-    for (const auto &info : files){
-        if (globalRow < info.firstRow || globalRow - info.firstRow >= info.recordCount){
-            continue;
-        }
-        uint64_t localRow = globalRow - info.firstRow;
-        uint64_t offset = sizeof(wlogv1::header) + localRow * sizeof(wlogv1::record);
+const uchar *getRecord(uint64_t globalRow, const std::vector<wlogFileInfo> &files){
+    int i = findFile(globalRow, files);
 
-        QFile file (info.path);
-
-        if (!file.open(QIODevice::ReadOnly)){
-            return false;
-        }
-        if (offset > static_cast<uint64_t>(file.size()) || sizeof(output) > static_cast<uint64_t>(file.size()) - offset){
-            return false;
-        }
-        if (!file.seek (static_cast<qint64>(offset))){
-            return false;
-        }
-        if (file.read(reinterpret_cast<char*>(&output), sizeof(output)) != sizeof(output)){
-            return false;
-        }
-        return true;
+    if (i < 0){
+        return nullptr;
     }
-    return false;
+
+    const auto &info = files[i];
+    uint64_t localRow = globalRow - info.firstRow;
+    return info.mapped + info.dataOffset + localRow * info.recordSize;
+}
+
+int findFile(uint64_t globalRow, const std::vector<wlogFileInfo> &files){
+    auto it = std::upper_bound(files.begin(), files.end(), globalRow, [](uint64_t row, const wlogFileInfo &f){
+        return row < f.firstRow;
+    });
+
+    if (it == files.begin()){
+        return -1;
+    }
+    --it;
+
+    if (globalRow - it->firstRow >= it->recordCount){
+        return -1;
+    }
+    return static_cast<int>(it - files.begin());
 }

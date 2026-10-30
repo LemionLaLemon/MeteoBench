@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <cmath>
 #include <qabstractitemmodel.h>
 #include <qaction.h>
 #include <qapplication.h>
@@ -61,11 +62,13 @@
 #include <QSignalBlocker>
 #include <QScrollBar>
 #include <QSignalBlocker>
+#include "./qcustomplot.h"
 
 #include "./wlogV1.h"
 #include "./wlogTableModel.h"
 #include "./struc.h"
 #include "./fileHeader.h"
+#include "getRecord.h"
 
 std::vector<wlogFileInfo> files;
 
@@ -74,35 +77,10 @@ QStringList selectedFiles = {
     "/home/lemion/Documents/Lemion Industries Meteobench/samplecontent/2026-08-01.wlog"
 };
 
-bool getRecord(uint64_t globalRow, const std::vector<wlogFileInfo> &files, wlogv1::record &output){
-    for (const auto &info : files){
-        if (globalRow < info.firstRow || globalRow - info.firstRow >= info.recordCount){
-            continue;
-        }
-        uint64_t localRow = globalRow - info.firstRow;
-        uint64_t offset = sizeof(wlogv1::header) + localRow * sizeof(wlogv1::record);
-
-        QFile file (info.path);
-
-        if (!file.open(QIODevice::ReadOnly)){
-            return false;
-        }
-        if (offset > static_cast<uint64_t>(file.size()) || sizeof(output) > static_cast<uint64_t>(file.size()) - offset){
-            return false;
-        }
-        if (!file.seek (static_cast<qint64>(offset))){
-            return false;
-        }
-        if (file.read(reinterpret_cast<char*>(&output), sizeof(output)) != sizeof(output)){
-            return false;
-        }
-        return true;
-    }
-    return false;
-}
-
 bool openWlog(const QString &path, wlogFileInfo &info){
-    QFile file(path);
+    info.file = std::make_unique<QFile>(path);
+    info.dataOffset = sizeof(wlogv1::header);
+    QFile &file = *info.file;
 
     if (!file.open(QIODevice::ReadOnly)) { 
         return false; 
@@ -150,6 +128,11 @@ bool openWlog(const QString &path, wlogFileInfo &info){
         info.firstTimestamp = first.timestamp;
     }
 
+    info.mapped = file.map(0, file.size());
+    if (!info.mapped){
+        return false;
+    }
+
     return true;
 };
 
@@ -160,7 +143,7 @@ void buildFileIndex(const QStringList &selectedFiles, std::vector<wlogFileInfo> 
         wlogFileInfo info;
 
         if (openWlog(path, info)) {
-            files.push_back(info);
+            files.push_back(std::move(info));
         }
     }
 
@@ -280,7 +263,7 @@ void drawPlotsTab(QWidget *plotsTab, WLogTableModel *model, QMenu *viewMenu, QTo
 
     std::vector<PlotTableView*> plotTables;
 
-    for (int column = 1; column <= 3; column++){ //TODO: fix absolute cheating
+    for (int column = 1; column < model->columnCount(); column++){ 
         PlotTableView *table = new PlotTableView();
         table->setModel(model);
         table->verticalHeader()->hide();
@@ -288,9 +271,82 @@ void drawPlotsTab(QWidget *plotsTab, WLogTableModel *model, QMenu *viewMenu, QTo
         for (int c = 1; c < model->columnCount(); c++){
             table->setColumnHidden(c, c != column);
         }
-        QLabel *graph = new QLabel(QString("Very Graph"));
-        graph->setAlignment(Qt::AlignCenter);
-        graph->setFrameShape(QFrame::StyledPanel);
+        QCustomPlot *graph = new QCustomPlot();
+        // TODO: calculate visible records and downsample the graph accordingly
+
+        QVector<double> times;
+        QVector<double> values;
+
+        for (uint64_t row = 0; row < 1000; row++){
+            const uchar *rec = getRecord(row, files);
+
+            if (!rec){
+                break;
+            }
+            times.append(wlog::readValue(rec, wlogv1::columns[0]));
+            values.append(wlog::readValue(rec, wlogv1::columns[column]));
+        }
+
+        graph->addGraph();
+        QSharedPointer<QCPAxisTickerDateTime> ticker(new QCPAxisTickerDateTime);
+        ticker->setDateTimeFormat("MM-dd HH:mm:ss");
+        graph->xAxis->setTicker(ticker);
+        graph->graph(0)->setAdaptiveSampling(true);
+        graph->graph(0)->setData(times, values);
+        graph->rescaleAxes();
+        graph->replot();
+
+        QCPItemTracer *tracer = new QCPItemTracer(graph);
+        tracer->setGraph(graph->graph(0));
+        tracer->setInterpolating(false);
+        tracer->setStyle(QCPItemTracer::tsCircle);
+        tracer->setSize(7);
+
+        QCPItemStraightLine *cursor = new QCPItemStraightLine(graph);
+        cursor->setPen(QPen(Qt::darkGray, 1, Qt::DashLine));
+        cursor->point1->setCoords(0, 0);
+        cursor->point2->setCoords(0, 1);
+        cursor->setVisible(false);
+        tracer->setVisible(false);
+
+        QObject::connect(graph, &QCustomPlot::mouseMove, [graph, tracer, cursor](QMouseEvent *event){
+            if (!graph->axisRect()->rect().contains(event->pos())){
+                cursor->setVisible(false);
+                tracer->setVisible(false);
+                QToolTip::hideText();
+                graph->replot(QCustomPlot::rpQueuedReplot);
+                return;
+            }
+
+            double x = graph->xAxis->pixelToCoord(event->pos().x());
+
+            if (graph->graph(0)->data()->isEmpty() || !std::isfinite(graph->yAxis->range().lower) || !std::isfinite(graph->yAxis->range().upper)){
+                return;
+            }
+            tracer->setGraphKey(x);
+            tracer->updatePosition();
+
+            double timestamp = tracer->position->key();
+            double value = tracer->position->value();
+
+            if (!std::isfinite(value)){
+                cursor->setVisible(false);
+                tracer->setVisible(false);
+                QToolTip::hideText();
+                graph->replot(QCustomPlot::rpQueuedReplot);
+                return;
+            }
+
+            cursor->point1->setCoords(timestamp, 0);
+            cursor->point2->setCoords(timestamp, 1);
+
+            cursor->setVisible(true);
+            tracer->setVisible(true);
+
+            QString time = QDateTime::fromSecsSinceEpoch(static_cast<qint64>(timestamp)).toString("yyyy-MM-dd HH:mm:ss");
+            QToolTip::showText(event->globalPosition().toPoint(), QString("%1:\n %2").arg(time).arg(value, 0, 'f', 2), graph);
+            graph->replot(QCustomPlot::rpQueuedReplot);
+        });
 
         tables->addWidget(table);
         graphs->addWidget(graph);
@@ -299,8 +355,9 @@ void drawPlotsTab(QWidget *plotsTab, WLogTableModel *model, QMenu *viewMenu, QTo
         plotTables.push_back(table);
     }
     horizontal->setSizes({250, 750});
-    tables->setSizes({1, 1, 1});
-    graphs->setSizes({1, 1, 1});
+    QList<int> equal(model->columnCount() - 1, 1);
+    tables->setSizes(equal);
+    graphs->setSizes(equal);
 
     layout->addWidget(horizontal);
 

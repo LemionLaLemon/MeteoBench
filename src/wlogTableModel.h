@@ -27,4 +27,5 @@ class WLogTableModel : public QAbstractTableModel{
         ) const override;
     private:
         const std::vector<wlogFileInfo> &files;
+        int totalRows = 0;
 };
