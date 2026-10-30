@@ -15,6 +15,7 @@
 #include <qboxlayout.h>
 #include <qbrush.h>
 #include <qcoreapplication.h>
+#include <qheaderview.h>
 #include <qlogging.h>
 #include <qmenubar.h>
 #include <qmessagebox.h>
@@ -22,7 +23,10 @@
 #include <qobject.h>
 #include <qpalette.h>
 #include <qpicture.h>
+#include <qscrollbar.h>
 #include <qscroller.h>
+#include <qsplitter.h>
+#include <qstyle.h>
 #include <qtabbar.h>
 #include <qtableview.h>
 #include <qtablewidget.h>
@@ -53,6 +57,10 @@
 #include <vector>
 #include <QShortcut>
 #include <QAbstractTableModel>
+#include <QSplitter>
+#include <QSignalBlocker>
+#include <QScrollBar>
+#include <QSignalBlocker>
 
 #include "./wlogV1.h"
 #include "./wlogTableModel.h"
@@ -179,11 +187,10 @@ void About(QWidget *window){
     );
 };
 
-void drawDataTableTab(QWidget *dataTableTab, const std::vector<wlogFileInfo> &files, QMenu *viewMenu, QMenu *recordsMenu, QToolBar *toolBar, QTabWidget *tabWidget){
+void drawDataTableTab(QWidget *dataTableTab, WLogTableModel *model, QMenu *viewMenu, QMenu *recordsMenu, QToolBar *toolBar, QTabWidget *tabWidget){
     QVBoxLayout *layout = new QVBoxLayout(dataTableTab);
 
     QTableView *table = new QTableView(dataTableTab);
-    WLogTableModel *model = new WLogTableModel(files, table);
 
     table->setModel(model);
 
@@ -214,7 +221,7 @@ void drawDataTableTab(QWidget *dataTableTab, const std::vector<wlogFileInfo> &fi
     QAction *jumpToPreviousFileAction = recordsMenu->addAction(QIcon("src/icons/JumpToPreviousFile.png"), "Jump to &Previous File");
     QAction *jumpToNextFileAction = recordsMenu->addAction(QIcon("src/icons/JumpToNextFile.png"), "Jump to &Next File");
 
-    QObject::connect(jumpToPreviousFileAction, &QAction::triggered, [table, model, &files](){
+    QObject::connect(jumpToPreviousFileAction, &QAction::triggered, [table, model](){
         int currentRow = table->rowAt(0);
         
         for (int i = static_cast<int>(files.size()) - 1; i >= 0; i--){
@@ -228,7 +235,7 @@ void drawDataTableTab(QWidget *dataTableTab, const std::vector<wlogFileInfo> &fi
         }
     });
 
-    QObject::connect(jumpToNextFileAction, &QAction::triggered, [table, model, &files](){
+    QObject::connect(jumpToNextFileAction, &QAction::triggered, [table, model](){
         int currentRow = table->rowAt(0);
         
         for (size_t i = 0; i < files.size(); i++){
@@ -254,6 +261,148 @@ void drawDataTableTab(QWidget *dataTableTab, const std::vector<wlogFileInfo> &fi
         separator->setVisible(index == 0);
         jumpToPreviousFileAction->setVisible(index == 0);
         jumpToNextFileAction->setVisible(index == 0);
+    });
+}
+class PlotTableView : public QTableView {
+    public:
+        using QTableView::QTableView;
+        using QTableView::sizeHintForColumn;
+};
+void drawPlotsTab(QWidget *plotsTab, WLogTableModel *model, QMenu *viewMenu, QToolBar *toolBar, QTabWidget *tabWidget){
+    QVBoxLayout *layout = new QVBoxLayout(plotsTab);
+
+    QSplitter *horizontal = new QSplitter(Qt::Horizontal);
+    QSplitter *tables = new QSplitter(Qt::Vertical);
+    QSplitter *graphs = new QSplitter(Qt::Vertical);
+
+    horizontal->addWidget(tables);
+    horizontal->addWidget(graphs);
+
+    std::vector<PlotTableView*> plotTables;
+
+    for (int column = 1; column <= 3; column++){ //TODO: fix absolute cheating
+        PlotTableView *table = new PlotTableView();
+        table->setModel(model);
+        table->verticalHeader()->hide();
+
+        for (int c = 1; c < model->columnCount(); c++){
+            table->setColumnHidden(c, c != column);
+        }
+        QLabel *graph = new QLabel(QString("Very Graph"));
+        graph->setAlignment(Qt::AlignCenter);
+        graph->setFrameShape(QFrame::StyledPanel);
+
+        tables->addWidget(table);
+        graphs->addWidget(graph);
+        table->setMinimumHeight(60);
+        graph->setMinimumHeight(60);
+        plotTables.push_back(table);
+    }
+    horizontal->setSizes({250, 750});
+    tables->setSizes({1, 1, 1});
+    graphs->setSizes({1, 1, 1});
+
+    layout->addWidget(horizontal);
+
+    auto dataColumn = [](QTableView *t) -> int {
+        for (int c = 1; c < t->model()->columnCount(); c++){
+            if (!t->isColumnHidden(c)){
+                return c;
+            }
+        }
+        return -1;
+    };
+
+    // table scroll sync
+    for (QTableView *source : plotTables){
+        QObject::connect(source->verticalScrollBar(), &QScrollBar::valueChanged, [plotTables, source](int value){
+            for (QTableView *target : plotTables){
+                if (target != source){
+                target->verticalScrollBar()->setValue(value);
+                }
+            }
+        });
+        QObject::connect(source->horizontalHeader(), &QHeaderView::sectionResized, [plotTables, source, dataColumn](int column, int, int newWidth){
+            if (source->isColumnHidden(column)){
+                return;
+            }
+            const bool isTime = (column == 0);
+            for (QTableView *target : plotTables){
+                if (target == source){
+                    continue;
+                }
+                int targetColumn = isTime ? 0 : dataColumn(target);
+                if (targetColumn < 0){
+                    continue;
+                }
+                if (target->columnWidth(targetColumn) != newWidth){
+                    target->setColumnWidth(targetColumn, newWidth);
+                }
+            }
+        });
+    }
+
+    // table graph vsync
+    QObject::connect(tables, &QSplitter::splitterMoved, [tables, graphs](int, int){
+        graphs->setSizes(tables->sizes());
+    });
+    QObject::connect(graphs, &QSplitter::splitterMoved, [tables, graphs](int, int){
+        tables->setSizes(graphs->sizes());
+    });
+
+    // actions
+    auto applyWidths = [plotTables, dataColumn](int timeWidth, int dataWidth){
+        for (QTableView *t : plotTables){
+            t->setColumnWidth(0, timeWidth);
+            int dc = dataColumn(t);
+            if (dc >= 0){
+                t->setColumnWidth(dc, dataWidth);
+            }
+        }
+    };
+
+    QAction *autoFitAction = viewMenu->addAction(QIcon("src/icons/AutofitColumns.png"), "Auto&Fit Columns");
+    QAction *normalizeAction = viewMenu->addAction(QIcon("src/icons/NormalizeColumns.png"), "&Normalize Columns");
+    QAction *resetAction = viewMenu->addAction(QIcon("src/icons/ResetLayout.png"), "&Reset Layout");
+
+    QObject::connect(autoFitAction, &QAction::triggered, [plotTables, dataColumn, applyWidths](){
+        int timeWidth = 0;
+        int dataWidth = 0;
+
+        for (PlotTableView *t : plotTables){
+            QHeaderView *header = t->horizontalHeader();
+
+            timeWidth = std::max({timeWidth, t->sizeHintForColumn(0), header->sectionSizeHint(0)});
+            int dc = dataColumn(t);
+            if (dc >= 0){
+                dataWidth = std::max({dataWidth, t->sizeHintForColumn(dc), header->sectionSizeHint(dc)});
+            }
+        }
+        applyWidths(timeWidth, dataWidth);
+    });
+
+    QObject::connect(normalizeAction, &QAction::triggered, [applyWidths](){
+        applyWidths(60, 60);
+    });
+
+    QObject::connect(resetAction, &QAction::triggered, [plotTables, applyWidths, horizontal, tables, graphs](){
+        int w = plotTables.front()->horizontalHeader()->defaultSectionSize();
+        applyWidths(w, w);
+        horizontal->setSizes({250, 750});
+        tables->setSizes({1, 1, 1});
+        graphs->setSizes({1, 1, 1});
+    });
+
+    toolBar->addAction(autoFitAction);
+    toolBar->addAction(normalizeAction);
+    toolBar->addAction(resetAction);
+    QAction *separator = toolBar->addSeparator();
+
+    QObject::connect(tabWidget, &QTabWidget::currentChanged, [=](int index){
+        autoFitAction->setVisible(index == 1);
+        normalizeAction->setVisible(index == 1);
+        resetAction->setVisible(index == 1);
+        separator->setVisible(index == 1);
     });
 }
 
@@ -355,7 +504,9 @@ int main(int argc, char *argv[])
     toolBar->addAction(validateAction);
     toolBar->addSeparator();
 
-    drawDataTableTab(dataTableTab, files, viewMenu, recordsMenu, toolBar, tabWidget);
+    WLogTableModel *model = new WLogTableModel(files, &window);
+    drawDataTableTab(dataTableTab, model, viewMenu, recordsMenu, toolBar, tabWidget);
+    drawPlotsTab(plotsTab, model, viewMenu, toolBar, tabWidget);
 
     window.show();
 
