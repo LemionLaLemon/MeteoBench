@@ -4,6 +4,14 @@
 #include <memory>
 #include <QFile>
 
+
+struct columnStats {
+    double min = INFINITY;
+    double max = -INFINITY;
+    double sum = 0;
+    uint64_t count = 0;
+};
+
 struct wlogFileInfo {
     QString path;
     uint16_t version;
@@ -14,4 +22,6 @@ struct wlogFileInfo {
     std::unique_ptr<QFile> file;
     const uchar *mapped = nullptr;
     uint64_t dataOffset = 0;
+    std::vector<columnStats> stats;
+    bool trimmed = false;
 };

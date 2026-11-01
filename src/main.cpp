@@ -63,14 +63,25 @@
 #include <QScrollBar>
 #include <QSignalBlocker>
 #include "./qcustomplot.h"
+#include <QProgressDialog>
+#include <QFileInfo>
+#include <functional>
 
 #include "./wlogV1.h"
 #include "./wlogTableModel.h"
 #include "./struc.h"
 #include "./fileHeader.h"
 #include "getRecord.h"
+#include "wlogCommon.h"
+#include "stats.h"
+#include "drawPlotsTab.h"
+#include "drawDataTableTab.h"
 
 std::vector<wlogFileInfo> files;
+
+WLogTableModel::WLogTableModel(const std::vector<wlogFileInfo> &fileIndex, QObject *parent) : QAbstractTableModel(parent), files(fileIndex){
+    recount();
+}
 
 QStringList selectedFiles = {
     "/home/lemion/Documents/Lemion Industries Meteobench/samplecontent/2026-07-31.wlog",
@@ -107,10 +118,6 @@ bool openWlog(const QString &path, wlogFileInfo &info){
 
     uint64_t dataSize = file.size() - sizeof(wlogv1::header);
 
-    if (dataSize % header.recordSize != 0) {
-        return false;
-    }
-
     info.path = path;
     info.version = header.version;
     info.recordSize = header.recordSize;
@@ -136,15 +143,48 @@ bool openWlog(const QString &path, wlogFileInfo &info){
     return true;
 };
 
-void buildFileIndex(const QStringList &selectedFiles, std::vector<wlogFileInfo> &files){
+bool trimToValid(wlogFileInfo &info){
+    const double minTime = 946684800.0; //2000 1 1
+    const double maxTime = 4102444800.0; //2100 1 1
+    double prev = 0;
+
+    for (uint64_t i = 0; i < info.recordCount; i++){
+        const uchar *rec = info.mapped + info.dataOffset + i * info.recordSize;
+        double t = wlog::readValue(rec, wlogv1::columns[0]);
+
+        if (!(t >= minTime && t <= maxTime) || t < prev){
+            info.recordCount = i;
+            return true;
+        }
+        prev = t;
+    }
+    return false;
+}
+
+QStringList buildFileIndex(const QStringList &selectedFiles, std::vector<wlogFileInfo> &files, const std::function<bool(int, const QString &)> &onProgress = nullptr){
+    QStringList failed;
+    int done = 0;
     files.clear();
 
     for (const QString &path : selectedFiles) {
+        if (onProgress && !onProgress(done, path)){
+            return failed;
+        }
         wlogFileInfo info;
 
         if (openWlog(path, info)) {
-            files.push_back(std::move(info));
+            info.trimmed = trimToValid(info);
+
+            if (info.recordCount == 0){
+                failed << path;
+            }
+            else {
+                computeStats(info);
+                files.push_back(std::move(info));
+            }
         }
+
+        done++;
     }
 
     std::sort(files.begin(), files.end(), [](const wlogFileInfo &a, const wlogFileInfo &b){
@@ -157,6 +197,7 @@ void buildFileIndex(const QStringList &selectedFiles, std::vector<wlogFileInfo> 
         file.firstRow = nextRow;
         nextRow += file.recordCount;
     }
+    return failed;
 }
 
 void About(QWidget *window){
@@ -169,299 +210,6 @@ void About(QWidget *window){
         "Meow mraaoaw mew mrrrp :3"
     );
 };
-
-void drawDataTableTab(QWidget *dataTableTab, WLogTableModel *model, QMenu *viewMenu, QMenu *recordsMenu, QToolBar *toolBar, QTabWidget *tabWidget){
-    QVBoxLayout *layout = new QVBoxLayout(dataTableTab);
-
-    QTableView *table = new QTableView(dataTableTab);
-
-    table->setModel(model);
-
-    FileHeader *fileHeader = new FileHeader(table);
-    table->setVerticalHeader(fileHeader);
-    table->horizontalHeader()->setResizeContentsPrecision(10);
-    table->horizontalHeader()->resizeSections(QHeaderView::ResizeToContents);
-    table->verticalHeader()->setFixedWidth(160);
-
-    layout->addWidget(table);
-
-    QAction *autoFitAction = viewMenu->addAction(QIcon("src/icons/AutofitColumns.png"), "Auto&Fit Columns");
-
-    QObject::connect(autoFitAction, &QAction::triggered, [table](){
-        table->horizontalHeader()->resizeSections(QHeaderView::ResizeToContents);
-    });
-
-    QAction *normalizeAction = viewMenu->addAction(QIcon("src/icons/NormalizeColumns.png"), "&Normalize Columns");
-
-    QObject::connect(normalizeAction, &QAction::triggered, [table](){
-        QHeaderView *header = table->horizontalHeader();
-
-        for (int i = 0; i < header->count(); i++){
-            header->resizeSection(i, 60);
-        }
-    });
-
-    QAction *jumpToPreviousFileAction = recordsMenu->addAction(QIcon("src/icons/JumpToPreviousFile.png"), "Jump to &Previous File");
-    QAction *jumpToNextFileAction = recordsMenu->addAction(QIcon("src/icons/JumpToNextFile.png"), "Jump to &Next File");
-
-    QObject::connect(jumpToPreviousFileAction, &QAction::triggered, [table, model](){
-        int currentRow = table->rowAt(0);
-        
-        for (int i = static_cast<int>(files.size()) - 1; i >= 0; i--){
-            if (files[i].firstRow < static_cast<uint64_t>(currentRow)){
-                table->scrollTo(
-                    model->index(static_cast<int>(files[i].firstRow), 0),
-                    QAbstractItemView::PositionAtTop
-                );
-                break;
-            }
-        }
-    });
-
-    QObject::connect(jumpToNextFileAction, &QAction::triggered, [table, model](){
-        int currentRow = table->rowAt(0);
-        
-        for (size_t i = 0; i < files.size(); i++){
-            if (files[i].firstRow > static_cast<uint64_t>(currentRow)){
-                table->scrollTo(
-                    model->index(static_cast<int>(files[i].firstRow), 0),
-                    QAbstractItemView::PositionAtTop
-                );
-                break;
-            }
-        }
-    });
-
-    toolBar->addAction(autoFitAction);
-    toolBar->addAction(normalizeAction);
-    QAction *separator = toolBar->addSeparator();
-    toolBar->addAction(jumpToPreviousFileAction);
-    toolBar->addAction(jumpToNextFileAction);
-
-    QObject::connect(tabWidget, &QTabWidget::currentChanged, [=](int index){
-        autoFitAction->setVisible(index == 0);
-        normalizeAction->setVisible(index == 0);
-        separator->setVisible(index == 0);
-        jumpToPreviousFileAction->setVisible(index == 0);
-        jumpToNextFileAction->setVisible(index == 0);
-    });
-}
-class PlotTableView : public QTableView {
-    public:
-        using QTableView::QTableView;
-        using QTableView::sizeHintForColumn;
-};
-void drawPlotsTab(QWidget *plotsTab, WLogTableModel *model, QMenu *viewMenu, QToolBar *toolBar, QTabWidget *tabWidget){
-    QVBoxLayout *layout = new QVBoxLayout(plotsTab);
-
-    QSplitter *horizontal = new QSplitter(Qt::Horizontal);
-    QSplitter *tables = new QSplitter(Qt::Vertical);
-    QSplitter *graphs = new QSplitter(Qt::Vertical);
-
-    horizontal->addWidget(tables);
-    horizontal->addWidget(graphs);
-
-    std::vector<PlotTableView*> plotTables;
-
-    for (int column = 1; column < model->columnCount(); column++){ 
-        PlotTableView *table = new PlotTableView();
-        table->setModel(model);
-        table->verticalHeader()->hide();
-
-        for (int c = 1; c < model->columnCount(); c++){
-            table->setColumnHidden(c, c != column);
-        }
-        QCustomPlot *graph = new QCustomPlot();
-        // TODO: calculate visible records and downsample the graph accordingly
-
-        QVector<double> times;
-        QVector<double> values;
-
-        for (uint64_t row = 0; row < 1000; row++){
-            const uchar *rec = getRecord(row, files);
-
-            if (!rec){
-                break;
-            }
-            times.append(wlog::readValue(rec, wlogv1::columns[0]));
-            values.append(wlog::readValue(rec, wlogv1::columns[column]));
-        }
-
-        graph->addGraph();
-        QSharedPointer<QCPAxisTickerDateTime> ticker(new QCPAxisTickerDateTime);
-        ticker->setDateTimeFormat("MM-dd HH:mm:ss");
-        graph->xAxis->setTicker(ticker);
-        graph->graph(0)->setAdaptiveSampling(true);
-        graph->graph(0)->setData(times, values);
-        graph->rescaleAxes();
-        graph->replot();
-
-        QCPItemTracer *tracer = new QCPItemTracer(graph);
-        tracer->setGraph(graph->graph(0));
-        tracer->setInterpolating(false);
-        tracer->setStyle(QCPItemTracer::tsCircle);
-        tracer->setSize(7);
-
-        QCPItemStraightLine *cursor = new QCPItemStraightLine(graph);
-        cursor->setPen(QPen(Qt::darkGray, 1, Qt::DashLine));
-        cursor->point1->setCoords(0, 0);
-        cursor->point2->setCoords(0, 1);
-        cursor->setVisible(false);
-        tracer->setVisible(false);
-
-        QObject::connect(graph, &QCustomPlot::mouseMove, [graph, tracer, cursor](QMouseEvent *event){
-            if (!graph->axisRect()->rect().contains(event->pos())){
-                cursor->setVisible(false);
-                tracer->setVisible(false);
-                QToolTip::hideText();
-                graph->replot(QCustomPlot::rpQueuedReplot);
-                return;
-            }
-
-            double x = graph->xAxis->pixelToCoord(event->pos().x());
-
-            if (graph->graph(0)->data()->isEmpty() || !std::isfinite(graph->yAxis->range().lower) || !std::isfinite(graph->yAxis->range().upper)){
-                return;
-            }
-            tracer->setGraphKey(x);
-            tracer->updatePosition();
-
-            double timestamp = tracer->position->key();
-            double value = tracer->position->value();
-
-            if (!std::isfinite(value)){
-                cursor->setVisible(false);
-                tracer->setVisible(false);
-                QToolTip::hideText();
-                graph->replot(QCustomPlot::rpQueuedReplot);
-                return;
-            }
-
-            cursor->point1->setCoords(timestamp, 0);
-            cursor->point2->setCoords(timestamp, 1);
-
-            cursor->setVisible(true);
-            tracer->setVisible(true);
-
-            QString time = QDateTime::fromSecsSinceEpoch(static_cast<qint64>(timestamp)).toString("yyyy-MM-dd HH:mm:ss");
-            QToolTip::showText(event->globalPosition().toPoint(), QString("%1:\n %2").arg(time).arg(value, 0, 'f', 2), graph);
-            graph->replot(QCustomPlot::rpQueuedReplot);
-        });
-
-        tables->addWidget(table);
-        graphs->addWidget(graph);
-        table->setMinimumHeight(60);
-        graph->setMinimumHeight(60);
-        plotTables.push_back(table);
-    }
-    horizontal->setSizes({250, 750});
-    QList<int> equal(model->columnCount() - 1, 1);
-    tables->setSizes(equal);
-    graphs->setSizes(equal);
-
-    layout->addWidget(horizontal);
-
-    auto dataColumn = [](QTableView *t) -> int {
-        for (int c = 1; c < t->model()->columnCount(); c++){
-            if (!t->isColumnHidden(c)){
-                return c;
-            }
-        }
-        return -1;
-    };
-
-    // table scroll sync
-    for (QTableView *source : plotTables){
-        QObject::connect(source->verticalScrollBar(), &QScrollBar::valueChanged, [plotTables, source](int value){
-            for (QTableView *target : plotTables){
-                if (target != source){
-                target->verticalScrollBar()->setValue(value);
-                }
-            }
-        });
-        QObject::connect(source->horizontalHeader(), &QHeaderView::sectionResized, [plotTables, source, dataColumn](int column, int, int newWidth){
-            if (source->isColumnHidden(column)){
-                return;
-            }
-            const bool isTime = (column == 0);
-            for (QTableView *target : plotTables){
-                if (target == source){
-                    continue;
-                }
-                int targetColumn = isTime ? 0 : dataColumn(target);
-                if (targetColumn < 0){
-                    continue;
-                }
-                if (target->columnWidth(targetColumn) != newWidth){
-                    target->setColumnWidth(targetColumn, newWidth);
-                }
-            }
-        });
-    }
-
-    // table graph vsync
-    QObject::connect(tables, &QSplitter::splitterMoved, [tables, graphs](int, int){
-        graphs->setSizes(tables->sizes());
-    });
-    QObject::connect(graphs, &QSplitter::splitterMoved, [tables, graphs](int, int){
-        tables->setSizes(graphs->sizes());
-    });
-
-    // actions
-    auto applyWidths = [plotTables, dataColumn](int timeWidth, int dataWidth){
-        for (QTableView *t : plotTables){
-            t->setColumnWidth(0, timeWidth);
-            int dc = dataColumn(t);
-            if (dc >= 0){
-                t->setColumnWidth(dc, dataWidth);
-            }
-        }
-    };
-
-    QAction *autoFitAction = viewMenu->addAction(QIcon("src/icons/AutofitColumns.png"), "Auto&Fit Columns");
-    QAction *normalizeAction = viewMenu->addAction(QIcon("src/icons/NormalizeColumns.png"), "&Normalize Columns");
-    QAction *resetAction = viewMenu->addAction(QIcon("src/icons/ResetLayout.png"), "&Reset Layout");
-
-    QObject::connect(autoFitAction, &QAction::triggered, [plotTables, dataColumn, applyWidths](){
-        int timeWidth = 0;
-        int dataWidth = 0;
-
-        for (PlotTableView *t : plotTables){
-            QHeaderView *header = t->horizontalHeader();
-
-            timeWidth = std::max({timeWidth, t->sizeHintForColumn(0), header->sectionSizeHint(0)});
-            int dc = dataColumn(t);
-            if (dc >= 0){
-                dataWidth = std::max({dataWidth, t->sizeHintForColumn(dc), header->sectionSizeHint(dc)});
-            }
-        }
-        applyWidths(timeWidth, dataWidth);
-    });
-
-    QObject::connect(normalizeAction, &QAction::triggered, [applyWidths](){
-        applyWidths(60, 60);
-    });
-
-    QObject::connect(resetAction, &QAction::triggered, [plotTables, applyWidths, horizontal, tables, graphs](){
-        int w = plotTables.front()->horizontalHeader()->defaultSectionSize();
-        applyWidths(w, w);
-        horizontal->setSizes({250, 750});
-        tables->setSizes({1, 1, 1});
-        graphs->setSizes({1, 1, 1});
-    });
-
-    toolBar->addAction(autoFitAction);
-    toolBar->addAction(normalizeAction);
-    toolBar->addAction(resetAction);
-    QAction *separator = toolBar->addSeparator();
-
-    QObject::connect(tabWidget, &QTabWidget::currentChanged, [=](int index){
-        autoFitAction->setVisible(index == 1);
-        normalizeAction->setVisible(index == 1);
-        resetAction->setVisible(index == 1);
-        separator->setVisible(index == 1);
-    });
-}
 
 int main(int argc, char *argv[])
 {
@@ -526,8 +274,8 @@ int main(int argc, char *argv[])
     QMenu *recordsMenu = menuBar->addMenu("&Records");
     recordsMenu->addAction(validateAction);
 
-    QMenu *plotsMenu = menuBar->addMenu("&Plots");
-    plotsMenu->setEnabled(false);
+    QMenu *plotsMenu = new StayOpenMenu("&Plots", &window);
+    menuBar->addMenu(plotsMenu);
 
     QMenu *analysisMenu = menuBar->addMenu("&Analysis");
     analysisMenu->setEnabled(false);
@@ -562,8 +310,90 @@ int main(int argc, char *argv[])
     toolBar->addSeparator();
 
     WLogTableModel *model = new WLogTableModel(files, &window);
-    drawDataTableTab(dataTableTab, model, viewMenu, recordsMenu, toolBar, tabWidget);
-    drawPlotsTab(plotsTab, model, viewMenu, toolBar, tabWidget);
+
+    std::vector<QAction*> dataActions;
+    std::vector<QAction*> plotActions;
+
+    auto syncToolBar = [&](int index){
+        for (QAction *a : dataActions){
+            a->setVisible(index == 0);
+        }
+        for (QAction *a : plotActions){
+            a->setVisible(index == 1);
+        }
+        plotsMenu->setEnabled(index == 1);
+    };
+    QObject::connect(tabWidget, &QTabWidget::currentChanged, syncToolBar);
+
+    QObject::connect(openAction, &QAction::triggered, [&](){
+        QStringList paths = QFileDialog::getOpenFileNames(&window, "Open WLOG Files", QString(), "WLOG files (*.wlog);;All files (*)");
+        if (paths.isEmpty()){
+            return;
+        }
+
+        QProgressDialog progress("", "Cancel", 0, static_cast<int>(paths.size()), &window);
+        progress.setWindowModality(Qt::WindowModal);
+        progress.setMinimumDuration(300);
+
+        auto labelFor = [](const QString &name){
+            return QString("<table><tr><td><img src='src/icons/Clock.png'</td><td style='padding-left: 8px;'>Pre-analyzing files...<br>%1</td></tr></table>").arg(name);
+        };
+
+        std::vector<wlogFileInfo> fresh;
+        QStringList failed = buildFileIndex(paths, fresh, [&](int done, const QString &path){
+            progress.setLabelText(labelFor(QFileInfo(path).fileName()));
+            progress.setValue(done);
+            return !progress.wasCanceled();
+        });
+
+        if (progress.wasCanceled()){
+            return;
+        }
+
+        progress.setValue(static_cast<int>(paths.size()));
+
+        if (fresh.empty()){
+            QMessageBox::warning(&window, "Nothing opened", "None of the selected files are valid WLOG files:\n\n" + failed.join("\n"));
+            return;
+        }
+
+        model->beginReload();
+        files= std::move(fresh);
+        model->endReload();
+
+        qDeleteAll(plotActions);
+        plotActions.clear();
+        qDeleteAll(plotsMenu->findChildren<QMenu*>(QString(), Qt::FindDirectChildrenOnly));
+        plotsMenu->clear();
+
+        const QObjectList kids = plotsTab->children();
+        qDeleteAll(kids);
+
+        drawPlotsTab(plotsTab, model, viewMenu, toolBar, tabWidget, plotsMenu, files, plotActions);
+        syncToolBar(tabWidget->currentIndex());
+
+        QStringList trimmed;
+        for (const auto &f : files){
+            if (f.trimmed){
+                trimmed << QFileInfo(f.path).fileName() + " (" + QString::number(f.recordCount) + " valid records kept)";
+            }
+        }
+
+        if (!failed.isEmpty() || !trimmed.isEmpty()){
+            QString msg;
+            if (!failed.isEmpty()){
+                msg += "Skipped (not valid WLOG files):\n" + failed.join("\n") + "\n\n";
+            }
+            if (!trimmed.isEmpty()){
+                msg += "Damaged files, loaded up to the first bad record:\n" + trimmed.join("\n");
+            }
+            QMessageBox::warning(&window, "Some files had problems", msg);
+        }
+    });
+
+    drawDataTableTab(dataTableTab, model, viewMenu, recordsMenu, toolBar, tabWidget, files, dataActions);
+    drawPlotsTab(plotsTab, model, viewMenu, toolBar, tabWidget, plotsMenu, files, plotActions);
+    syncToolBar(tabWidget->currentIndex());
 
     window.show();
 

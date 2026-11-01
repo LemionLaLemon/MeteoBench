@@ -25,7 +25,10 @@ class WLogTableModel : public QAbstractTableModel{
             const QModelIndex &index,
             int role = Qt::DisplayRole
         ) const override;
+        void beginReload();
+        void endReload();
     private:
         const std::vector<wlogFileInfo> &files;
         int totalRows = 0;
+        void recount();
 };

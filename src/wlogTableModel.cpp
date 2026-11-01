@@ -12,7 +12,7 @@
 #include <QFileInfo>
 #include <QColor>
 
-WLogTableModel::WLogTableModel(const std::vector<wlogFileInfo> &fileIndex, QObject *parent) : QAbstractTableModel(parent), files(fileIndex) {
+void WLogTableModel::recount(){
     uint64_t total = 0;
 
     for (const auto &file : files){
@@ -20,6 +20,13 @@ WLogTableModel::WLogTableModel(const std::vector<wlogFileInfo> &fileIndex, QObje
     }
 
     totalRows = static_cast<int>(total);
+}
+
+void WLogTableModel::beginReload(){ beginResetModel(); }
+
+void WLogTableModel::endReload(){
+    recount();
+    endResetModel();
 }
 
 int WLogTableModel::rowCount(const QModelIndex &parent) const {

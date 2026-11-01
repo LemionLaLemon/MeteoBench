@@ -17,6 +17,9 @@ qt_add_executable(meteobench
     src/wlogTableModel.cpp 
     src/qcustomplot.cpp
     src/getRecord.cpp
+    src/stats.cpp
+    src/drawPlotsTab.cpp
+    src/drawDataTableTab.cpp
 )
 
 target_compile_options(meteobench PRIVATE -Wall -Wextra)
