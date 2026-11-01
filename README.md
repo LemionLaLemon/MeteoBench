@@ -5,6 +5,12 @@
 
 MeteoBench's only purpose in life is to read, plot, and analyze .wlog files (my own file format) from my weather station.
 
+To use:
+1. Download and unzip samplewlog.zip
+2. Download the executable for your system
+3. Launch the executable
+4. Press Ctrl + O or press the "Open" button to select downloaded .wlog files
+
 Features may (or may not) include:
 - Reading wlog v1 files
 - Rendering wlog v1 files on a table
