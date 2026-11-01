@@ -83,10 +83,10 @@ WLogTableModel::WLogTableModel(const std::vector<wlogFileInfo> &fileIndex, QObje
     recount();
 }
 
-QStringList selectedFiles = {
-    "/home/lemion/Documents/Lemion Industries Meteobench/samplecontent/2026-07-31.wlog",
-    "/home/lemion/Documents/Lemion Industries Meteobench/samplecontent/2026-08-01.wlog"
-};
+// QStringList selectedFiles = {
+//     "/home/lemion/Documents/Lemion Industries Meteobench/samplecontent/2026-07-31.wlog",
+//     "/home/lemion/Documents/Lemion Industries Meteobench/samplecontent/2026-08-01.wlog"
+// };
 
 bool openWlog(const QString &path, wlogFileInfo &info){
     info.file = std::make_unique<QFile>(path);
@@ -213,7 +213,7 @@ void About(QWidget *window){
 
 int main(int argc, char *argv[])
 {
-    buildFileIndex(selectedFiles, files);
+    //buildFileIndex(selectedFiles, files);
     // App setup
     QApplication app(argc, argv);
     QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Light);
