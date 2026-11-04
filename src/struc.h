@@ -12,6 +12,13 @@ struct columnStats {
     uint64_t count = 0;
 };
 
+struct MasterColumn {
+    const char *id;
+    const char *title;
+    const char *unit;
+    wlog::displayFormat format;
+};
+
 struct wlogFileInfo {
     QString path;
     const wlog::LogFormat *format = nullptr;
@@ -25,4 +32,5 @@ struct wlogFileInfo {
     uint64_t dataOffset = 0;
     std::vector<columnStats> stats;
     bool trimmed = false;
+    std::vector<int>columnMap;
 };

@@ -12,6 +12,7 @@
 #include "getRecord.h"
 #include <memory>
 #include <algorithm>
+#include "formats.h"
 
 class PlotTableView : public QTableView {
     public:

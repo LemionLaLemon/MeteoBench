@@ -79,10 +79,7 @@
 #include "formats.h"
 
 std::vector<wlogFileInfo> files;
-
-WLogTableModel::WLogTableModel(const std::vector<wlogFileInfo> &fileIndex, QObject *parent) : QAbstractTableModel(parent), files(fileIndex){
-    recount();
-}
+std::vector<MasterColumn> master;
 
 QStringList selectedFiles = {
     "/home/lemion/Documents/Lemion Industries Meteobench/samplecontent/2026-07-31.wlog",
@@ -102,7 +99,7 @@ bool openWlog(const QString &path, wlogFileInfo &info){
 
     wlog::headerPrefix header; //header struc type whatnot
 
-    if (file.read(reinterpret_cast<char*>(&header), sizeof(header)), sizeof(header) != sizeof(header)) { 
+    if (file.read(reinterpret_cast<char*>(&header), sizeof(header)) != static_cast<qint64>(sizeof(header))) { 
         return false; 
     }
     if (memcmp(header.magic, "WLOG", 4) != 0) { 
@@ -215,6 +212,7 @@ void About(QWidget *window){
 int main(int argc, char *argv[])
 {
     buildFileIndex(selectedFiles, files);
+    buildMaster(files, master);
     // App setup
     QApplication app(argc, argv);
     QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Light);
@@ -310,7 +308,7 @@ int main(int argc, char *argv[])
     toolBar->addAction(validateAction);
     toolBar->addSeparator();
 
-    WLogTableModel *model = new WLogTableModel(files, &window);
+    WLogTableModel *model = new WLogTableModel(files, master, &window);
 
     std::vector<QAction*> dataActions;
     std::vector<QAction*> plotActions;
@@ -360,6 +358,7 @@ int main(int argc, char *argv[])
 
         model->beginReload();
         files= std::move(fresh);
+        buildMaster(files, master);
         model->endReload();
 
         qDeleteAll(plotActions);

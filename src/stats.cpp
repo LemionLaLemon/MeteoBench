@@ -1,13 +1,13 @@
 #include "stats.h"
 
 void computeStats(wlogFileInfo &info){
-    info.stats.assign(wlogv1::columnCount, columnStats{});
+    info.stats.assign(info.format->columnCount, columnStats{});
 
     for (uint64_t row = 0; row < info.recordCount; row++){
         const uchar *rec = info.mapped + info.dataOffset + row * info.recordSize;
 
         for (size_t c = 0; c < wlogv1::columnCount; c++){
-            double v = wlog::readValue(rec, wlogv1::columns[c]);
+            double v = wlog::readValue(rec, info.format->columns[c]);
 
             if (!std::isfinite(v)){
                 continue;

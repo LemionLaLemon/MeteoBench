@@ -1,5 +1,6 @@
 #include "wlogTableModel.h"
 #include "struc.h"
+#include "wlogCommon.h"
 #include "wlogV1.h"
 #include <qabstractitemmodel.h>
 #include <qcolor.h>
@@ -11,6 +12,10 @@
 #include <cmath>
 #include <QFileInfo>
 #include <QColor>
+
+WLogTableModel::WLogTableModel(const std::vector<wlogFileInfo> &fileIndex, const std::vector<MasterColumn> &masterColumns, QObject *parent) : QAbstractTableModel(parent), files(fileIndex), master(masterColumns){
+    recount();
+}
 
 void WLogTableModel::recount(){
     uint64_t total = 0;
@@ -42,7 +47,7 @@ int WLogTableModel::columnCount(const QModelIndex &parent) const {
         return 0;
     }
 
-    return static_cast<int>(wlogv1::columnCount);
+    return static_cast<int>(master.size());
 }
 
 QVariant WLogTableModel::headerData(int section, Qt::Orientation orientation, int role) const {
@@ -79,11 +84,11 @@ QVariant WLogTableModel::headerData(int section, Qt::Orientation orientation, in
         return {};
     }
 
-    if (section < 0 || section >= static_cast<qint32>(wlogv1::columnCount)){
+    if (section < 0 || section >= static_cast<int>(master.size())){
         return {};
     }
 
-    return wlogv1::columns[section].title;
+    return master[section].title;
 }
 
 QVariant WLogTableModel::data(const QModelIndex &index, int role) const {
@@ -91,16 +96,15 @@ QVariant WLogTableModel::data(const QModelIndex &index, int role) const {
         return {};
     }
 
-    const uchar *rec = getRecord(index.row(), files);
-    if (!rec){
-        return {};
+    double v;
+
+    if (!readCell(index.row(), index.column(), files, v)){
+        return QString("-");
     }
 
-    const auto &col = wlogv1::columns[index.column()];
-    double v = wlog::readValue(rec, col);
-
-    if (col.format == wlog::displayFormat::datetime){
+    if (master[index.column()].format == wlog::displayFormat::datetime){
         return QDateTime::fromSecsSinceEpoch(static_cast<qint64>(v)).toString("yyyy-MM-dd HH:mm:ss");
     }
-    return std::isnan(v) ? QString("NaN") : QString::number(v, 'f', 2);
+
+    return std::isfinite(v) ?  QString::number(v, 'f', 2) : QString("-");
 }

@@ -80,14 +80,13 @@ void drawPlotsTab(QWidget *plotsTab, WLogTableModel *model, QMenu *viewMenu, QTo
 
     times.reserve(static_cast<qsizetype>(rows));
 
-
     for (uint64_t row = 0; row < rows; row++){
-        const uchar *rec = getRecord(row, files);
+        double t;
 
-        if (!rec){
+        if (!readCell(row, 0, files, t)){
             break;
         }
-        times.append(wlog::readValue(rec, wlogv1::columns[0]));
+        times.append(t);
     }
 
     for (int column = 1; column < model->columnCount(); column++){ 
@@ -120,12 +119,13 @@ void drawPlotsTab(QWidget *plotsTab, WLogTableModel *model, QMenu *viewMenu, QTo
         // TODO: calculate visible records and downsample the graph accordingly
 
         for (uint64_t row = 0; row < rows; row++){
-            const uchar *rec = getRecord(row, files);
+            double v;
 
-            if (!rec){
-                break;
+            if (!readCell(row, column, files, v)){
+                v = NAN;
             }
-            values.append(wlog::readValue(rec, wlogv1::columns[column]));
+
+            values.append(v);
         }
 
         graph->addGraph();

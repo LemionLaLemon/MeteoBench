@@ -12,6 +12,7 @@ class WLogTableModel : public QAbstractTableModel{
     public:
         explicit WLogTableModel(
             const std::vector<wlogFileInfo> &files,
+            const std::vector<MasterColumn> &master,
             QObject *parent = nullptr
         );
         int rowCount(const QModelIndex &parent = QModelIndex()) const override;
@@ -29,6 +30,7 @@ class WLogTableModel : public QAbstractTableModel{
         void endReload();
     private:
         const std::vector<wlogFileInfo> &files;
+        const std::vector<MasterColumn> &master;
         int totalRows = 0;
         void recount();
 };
