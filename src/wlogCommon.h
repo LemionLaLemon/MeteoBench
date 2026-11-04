@@ -36,4 +36,17 @@ namespace wlog{
         }
         return NAN;
     }
+    struct [[gnu::packed]] headerPrefix {
+        char magic[4];
+        uint16_t version;
+        uint16_t recordSize;
+    };
+    struct LogFormat{
+        uint16_t version;
+        uint16_t headerSize;
+        uint16_t recordSize;
+        const column *columns;
+        size_t columnCount;
+        bool (*validRecord)(const uint8_t *rec);
+    };
 }

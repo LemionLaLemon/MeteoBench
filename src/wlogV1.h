@@ -22,6 +22,7 @@ namespace wlogv1{
         {"pressure", "Pressure", "hPa", wlog::type::float32, wlog::displayFormat::number, offsetof(record, pressure)}
     };
     inline constexpr size_t columnCount = sizeof(columns) / sizeof(columns[0]);
+    inline constexpr wlog::LogFormat logFormat = {1, sizeof(header), sizeof(record), columns, columnCount, nullptr};
 }
 
 static_assert(sizeof(wlogv1::header) == 8);

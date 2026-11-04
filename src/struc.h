@@ -3,7 +3,7 @@
 #include <QString>
 #include <memory>
 #include <QFile>
-
+#include "wlogCommon.h"
 
 struct columnStats {
     double min = INFINITY;
@@ -14,6 +14,7 @@ struct columnStats {
 
 struct wlogFileInfo {
     QString path;
+    const wlog::LogFormat *format = nullptr;
     uint16_t version;
     uint16_t recordSize;
     uint64_t recordCount;

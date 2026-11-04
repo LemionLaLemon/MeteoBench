@@ -76,6 +76,7 @@
 #include "stats.h"
 #include "drawPlotsTab.h"
 #include "drawDataTableTab.h"
+#include "formats.h"
 
 std::vector<wlogFileInfo> files;
 
@@ -83,61 +84,57 @@ WLogTableModel::WLogTableModel(const std::vector<wlogFileInfo> &fileIndex, QObje
     recount();
 }
 
-// QStringList selectedFiles = {
-//     "/home/lemion/Documents/Lemion Industries Meteobench/samplecontent/2026-07-31.wlog",
-//     "/home/lemion/Documents/Lemion Industries Meteobench/samplecontent/2026-08-01.wlog"
-// };
+QStringList selectedFiles = {
+    "/home/lemion/Documents/Lemion Industries Meteobench/samplecontent/2026-07-31.wlog",
+    "/home/lemion/Documents/Lemion Industries Meteobench/samplecontent/2026-08-01.wlog"
+};
 
 bool openWlog(const QString &path, wlogFileInfo &info){
     info.file = std::make_unique<QFile>(path);
-    info.dataOffset = sizeof(wlogv1::header);
     QFile &file = *info.file;
 
     if (!file.open(QIODevice::ReadOnly)) { 
         return false; 
     }
-    if (file.size() < static_cast<qint64>(sizeof(wlogv1::header))) { 
+    if (file.size() < static_cast<qint64>(sizeof(wlog::headerPrefix))) { 
         return false; 
     }
 
-    wlogv1::header header; //header struc type whatnot
-    qint64 headerSize = sizeof(header);
+    wlog::headerPrefix header; //header struc type whatnot
 
-    if (file.read(reinterpret_cast<char*>(&header), headerSize) != headerSize) { 
+    if (file.read(reinterpret_cast<char*>(&header), sizeof(header)), sizeof(header) != sizeof(header)) { 
         return false; 
     }
     if (memcmp(header.magic, "WLOG", 4) != 0) { 
         return false; 
     }
-    if (header.version != 1) {
+
+    const wlog::LogFormat *fmt = findFormat(header.version);
+
+    if (!fmt || header.recordSize != fmt->recordSize){
         return false;
     }
-    if (header.recordSize != sizeof(wlogv1::record)){
+    if (file.size() < static_cast<qint64>(fmt->headerSize)){
         return false;
     }
 
-    uint64_t dataSize = file.size() - sizeof(wlogv1::header);
-
-    info.path = path;
-    info.version = header.version;
-    info.recordSize = header.recordSize;
-    info.recordCount = dataSize / header.recordSize;
-    info.firstTimestamp = 0;
-
-    if (info.recordCount > 0) {
-        wlogv1::record first;
-
-        qint64 firstRecordSize = sizeof(first);
-        if (file.read(reinterpret_cast<char*>(&first), firstRecordSize) != firstRecordSize) {
-            return false;
-        }
-
-        info.firstTimestamp = first.timestamp;
-    }
-
-    info.mapped = file.map(0, file.size());
+    info.mapped = file.map(0, file.size());;
     if (!info.mapped){
         return false;
+    }
+
+    uint64_t dataSize = file.size() - fmt->headerSize;
+
+    info.path = path;
+    info.format = fmt;
+    info.version = fmt->version;
+    info.recordSize = fmt->recordSize;
+    info.dataOffset = fmt->headerSize;
+    info.recordCount = dataSize / fmt->recordSize;
+    info.firstTimestamp = 0;
+
+    if (info.recordCount > 0){
+        info.firstTimestamp = static_cast<uint64_t>(wlog::readValue(info.mapped + info.dataOffset, fmt->columns[0]));
     }
 
     return true;
@@ -150,9 +147,10 @@ bool trimToValid(wlogFileInfo &info){
 
     for (uint64_t i = 0; i < info.recordCount; i++){
         const uchar *rec = info.mapped + info.dataOffset + i * info.recordSize;
-        double t = wlog::readValue(rec, wlogv1::columns[0]);
+        double t = wlog::readValue(rec, info.format->columns[0]);
+        bool shapeOk = !info.format->validRecord || info.format->validRecord(rec);
 
-        if (!(t >= minTime && t <= maxTime) || t < prev){
+        if (!shapeOk || !(t >= minTime && t <= maxTime) || t < prev){
             info.recordCount = i;
             return true;
         }
@@ -182,6 +180,9 @@ QStringList buildFileIndex(const QStringList &selectedFiles, std::vector<wlogFil
                 computeStats(info);
                 files.push_back(std::move(info));
             }
+        }
+        else {
+            failed << path;
         }
 
         done++;
@@ -213,7 +214,7 @@ void About(QWidget *window){
 
 int main(int argc, char *argv[])
 {
-    //buildFileIndex(selectedFiles, files);
+    buildFileIndex(selectedFiles, files);
     // App setup
     QApplication app(argc, argv);
     QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Light);
