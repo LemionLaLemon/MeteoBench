@@ -13,7 +13,7 @@
 #include <QFileInfo>
 #include <QColor>
 
-WLogTableModel::WLogTableModel(const std::vector<wlogFileInfo> &fileIndex, const std::vector<MasterColumn> &masterColumns, QObject *parent) : QAbstractTableModel(parent), files(fileIndex), master(masterColumns){
+WLogTableModel::WLogTableModel(const std::vector<wlogFileInfo> &fileIndex, const std::vector<MasterColumn> &masterColumns, QSettings *settings, QObject *parent) : QAbstractTableModel(parent), files(fileIndex), master(masterColumns), settings(settings){
     recount();
 }
 
@@ -88,7 +88,22 @@ QVariant WLogTableModel::headerData(int section, Qt::Orientation orientation, in
         return {};
     }
 
-    return master[section].title;
+    const auto &col = master[section];
+
+    const QString title = QString::fromUtf8(col.title);
+    const QString unit = QString::fromUtf8(col.unit);
+
+    if (unit.isEmpty()){
+        return col.title;
+    }
+    if (unit == "DEG C" && settings->value("locale/temperature", "celsius").toString() == "fahrenheit"){
+        return QString("%1 (DEG F)").arg(title);
+    }
+    if (unit == "DEG F" && settings->value("locale/temperature", "celsius").toString() == "celsius"){ //there's one station on earth that uses this format, if DEG C turns into DEG F the station is probably broken
+        return QString("%1 (DEG C)").arg(title);
+    }
+
+    return QString("%1 (%2)").arg(col.title, col.unit);
 }
 
 QVariant WLogTableModel::data(const QModelIndex &index, int role) const {
@@ -103,7 +118,7 @@ QVariant WLogTableModel::data(const QModelIndex &index, int role) const {
     }
 
     if (master[index.column()].format == wlog::displayFormat::datetime){
-        return QDateTime::fromSecsSinceEpoch(static_cast<qint64>(v)).toString("yyyy-MM-dd HH:mm:ss");
+        return QDateTime::fromSecsSinceEpoch(static_cast<qint64>(v)).toString(master[index.column()].unit);
     }
 
     return std::isfinite(v) ?  QString::number(v, 'f', 2) : QString("-");

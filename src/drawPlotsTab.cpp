@@ -101,7 +101,7 @@ void drawPlotsTab(QWidget *plotsTab, WLogTableModel *model, QMenu *viewMenu, QTo
         delete old;
         table->setSelectionBehavior(QAbstractItemView::SelectRows);
 
-        QAction *toggle = plotsMenu ->addAction(wlogv1::columns[column].title);
+        QAction *toggle = plotsMenu ->addAction(model->headerData(column, Qt::Horizontal).toString());
         toggle->setCheckable(true);
         toggle->setChecked(true);
 
@@ -202,7 +202,7 @@ void drawPlotsTab(QWidget *plotsTab, WLogTableModel *model, QMenu *viewMenu, QTo
         return -1;
     };
 
-    auto showAt = [plots](double x){
+    auto showAt = [plots, model](double x){
         QString time;
         QString lines;
 
@@ -224,7 +224,7 @@ void drawPlotsTab(QWidget *plotsTab, WLogTableModel *model, QMenu *viewMenu, QTo
             if (time.isEmpty()){
                 time = QDateTime::fromSecsSinceEpoch(static_cast<qint64>(ts)).toString("yyyy-MM-dd HH:mm:ss");
             }
-           lines += QString("\n%1: %2").arg(wlogv1::columns[p.column].title).arg(std::isfinite(value) ? QString::number(value, 'f', 2) : QString("NaN"));
+           lines += QString("\n%1: %3").arg(model->headerData(p.column, Qt::Horizontal).toString()).arg(std::isfinite(value) ? QString::number(value, 'f', 2) : QString("NaN"));
 
             p.graph->replot(QCustomPlot::rpQueuedReplot);
         }

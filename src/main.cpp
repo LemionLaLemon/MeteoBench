@@ -77,6 +77,7 @@
 #include "drawPlotsTab.h"
 #include "drawDataTableTab.h"
 #include "formats.h"
+#include "settings.h"
 
 std::vector<wlogFileInfo> files;
 std::vector<MasterColumn> master;
@@ -218,6 +219,12 @@ int main(int argc, char *argv[])
     QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Light);
     QPalette palette = app.palette();
 
+    //QCoreApplication::setOrganizationDomain("lemionindustries.cc"); //maybe ill have the domain someday
+    QCoreApplication::setOrganizationName("Lemion Industries");
+    QCoreApplication::setApplicationName("MeteoBench");
+
+    QSettings settings;
+
     palette.setColor(QPalette::Window, QColor("#dfe8f6"));
     palette.setColor(QPalette::WindowText, Qt::black);
     palette.setColor(QPalette::Base, Qt::white);
@@ -260,10 +267,16 @@ int main(int argc, char *argv[])
     QAction *aboutAction = new QAction("&About MeteoBench", &window);
     QObject::connect(aboutAction, &QAction::triggered, [&window](){About(&window);});
 
+    QAction *settingsAction = new QAction("&Preferences", &window);
+    QObject::connect(settingsAction, &QAction::triggered, [&window, &settings](){
+        drawSettingsWindow(&window, &settings);
+    });
+
     // Menubar Setup
     QMenuBar *menuBar = window.menuBar();
     QMenu *fileMenu = menuBar->addMenu("&File");
     fileMenu->addAction(openAction);
+    fileMenu->addAction(settingsAction);
 
     QMenu *editMenu = menuBar->addMenu("&Edit");
     editMenu->setEnabled(false);
@@ -308,7 +321,7 @@ int main(int argc, char *argv[])
     toolBar->addAction(validateAction);
     toolBar->addSeparator();
 
-    WLogTableModel *model = new WLogTableModel(files, master, &window);
+    WLogTableModel *model = new WLogTableModel(files, master, &settings, &window);
 
     std::vector<QAction*> dataActions;
     std::vector<QAction*> plotActions;

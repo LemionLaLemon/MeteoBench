@@ -5,6 +5,7 @@
 #include <qnamespace.h>
 #include <qvariant.h>
 #include <vector>
+#include <QSettings>
 
 #include "./struc.h"
 
@@ -13,6 +14,7 @@ class WLogTableModel : public QAbstractTableModel{
         explicit WLogTableModel(
             const std::vector<wlogFileInfo> &files,
             const std::vector<MasterColumn> &master,
+            QSettings *settings, 
             QObject *parent = nullptr
         );
         int rowCount(const QModelIndex &parent = QModelIndex()) const override;
@@ -31,6 +33,7 @@ class WLogTableModel : public QAbstractTableModel{
     private:
         const std::vector<wlogFileInfo> &files;
         const std::vector<MasterColumn> &master;
+        QSettings *settings;
         int totalRows = 0;
         void recount();
 };
