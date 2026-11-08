@@ -263,9 +263,6 @@ int main(int argc, char *argv[])
 
     QAction *validateAction = new QAction(QIcon("src/icons/Validate.png"), "&Validate", &window);
     validateAction->setToolTip("Validate opened WLOG files\nChecks for corrupt file regions");
-    QObject::connect(validateAction, &QAction::triggered, [&window](){
-        drawValidationWindow(&window, files);
-    });
 
     QAction *aboutAction = new QAction("&About MeteoBench", &window);
     QObject::connect(aboutAction, &QAction::triggered, [&window](){About(&window);});
@@ -340,11 +337,7 @@ int main(int argc, char *argv[])
     };
     QObject::connect(tabWidget, &QTabWidget::currentChanged, syncToolBar);
 
-    QObject::connect(openAction, &QAction::triggered, [&](){
-        QStringList paths = QFileDialog::getOpenFileNames(&window, "Open WLOG Files", QString(), "WLOG files (*.wlog);;All files (*)");
-        if (paths.isEmpty()){
-            return;
-        }
+    auto loadFiles = [&](const QStringList &paths){
 
         QProgressDialog progress("", "Cancel", 0, static_cast<int>(paths.size()), &window);
         progress.setWindowModality(Qt::WindowModal);
@@ -398,13 +391,29 @@ int main(int argc, char *argv[])
         if (!failed.isEmpty() || !trimmed.isEmpty()){
             QString msg;
             if (!failed.isEmpty()){
-                msg += "Skipped (not valid WLOG files):\n" + failed.join("\n") + "\n\n";
+                msg += "Skipped loading (not valid WLOG files):\n" + failed.join("\n") + "\n\n";
             }
             if (!trimmed.isEmpty()){
                 msg += "Damaged files, loaded up to the first bad record:\n" + trimmed.join("\n");
             }
             QMessageBox::warning(&window, "Some files had problems", msg);
         }
+    };
+    QObject::connect(openAction, &QAction::triggered, [&](){
+        QStringList paths = QFileDialog::getOpenFileNames(&window, "Open WLOG Files", QString(), "Wlog files (*.wlog);;All files (*)");
+        if (paths.isEmpty()){
+            return;
+        }
+        loadFiles(paths);
+    });
+    QObject::connect(validateAction, &QAction::triggered, [&](){
+        drawValidationWindow(&window, files, [&](){
+            QStringList paths;
+            for (const auto &f : files){
+                paths << f.path;
+            }
+            loadFiles(paths);
+        });
     });
 
     drawDataTableTab(dataTableTab, model, viewMenu, recordsMenu, toolBar, tabWidget, files, dataActions);

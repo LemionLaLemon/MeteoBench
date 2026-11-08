@@ -2,12 +2,14 @@
 #include "struc.h"
 #include "validation.h"
 #include "wlogCommon.h"
+#include <QtCore>
 #include <algorithm>
 #include <qabstractitemview.h>
 #include <qboxlayout.h>
 #include <qcheckbox.h>
 #include <qdialog.h>
 #include <qdialogbuttonbox.h>
+#include <qevent.h>
 #include <qfileinfo.h>
 #include <qformlayout.h>
 #include <qgroupbox.h>
@@ -23,6 +25,9 @@
 #include <qspinbox.h>
 #include <qtablewidget.h>
 #include <qwidget.h>
+#include <QMessageBox>
+#include <set>
+#include <map>
 
 struct checkWidget{
     const wlog::LogFormat *format;
@@ -101,7 +106,46 @@ static std::vector<activeCheck> collect(const std::vector<checkWidget> &widgets)
     return active;
 }
 
-void drawValidationWindow(QWidget *parent, const std::vector<wlogFileInfo> &files){
+static bool deleteRecords(const wlogFileInfo &file, const std::set<uint64_t> &rowsToDelete, QString &error){
+    QFile in(file.path);
+    if (!in.open(QIODevice::ReadOnly)){
+        error = in.errorString();
+        return false;
+    }
+
+    QFile::remove(file.path + ".bak"); //delete previous backups
+    QFile::copy(file.path, file.path + ".bak"); //back up the file
+
+    QSaveFile out(file.path);
+    if (!out.open(QIODevice::WriteOnly)){
+        error = out.errorString();
+        return false;
+    }
+
+    out.write(in.read(file.dataOffset));
+
+    const qint64 size = file.recordSize;
+    uint64_t row = 0;
+    while (!in.atEnd()){
+        QByteArray block = in.read(size * 4096);
+        qint64 pos = 0;
+        for (; pos + size <= block.size(); pos += size, row++){
+            if (!rowsToDelete.count(row)){
+                out.write(block.constData() + pos, size);
+            }
+        }
+        if (pos < block.size()){
+            out.write(block.constData() + pos, block.size() - pos);
+        }
+    }
+    if (!out.commit()){
+        error = out.errorString();
+        return false;
+    }
+    return true;
+}
+
+void drawValidationWindow(QWidget *parent, const std::vector<wlogFileInfo> &files, const std::function<void()> &onFilesChanged){
     QDialog dialog(parent);
     dialog.setWindowTitle("Validation");
     dialog.resize(800, 600);
@@ -112,7 +156,7 @@ void drawValidationWindow(QWidget *parent, const std::vector<wlogFileInfo> &file
     mainLayoutOfLies->addLayout(mainLayout);
 
     QVBoxLayout *validationSelection = new QVBoxLayout();
-    mainLayout->addLayout(validationSelection, 4); //4:6 split with affectedRows
+    mainLayout->addLayout(validationSelection, 6); //4:6 split with affectedRows
 
     //validation options selection
     QScrollArea *selectionScrollArea = new QScrollArea();
@@ -165,7 +209,7 @@ void drawValidationWindow(QWidget *parent, const std::vector<wlogFileInfo> &file
 
     //affected rows
     QVBoxLayout *affectedRows = new QVBoxLayout();
-    mainLayout->addLayout(affectedRows, 6);
+    mainLayout->addLayout(affectedRows, 7);
 
     QTableWidget *affectedTable = new QTableWidget(0, 4 + static_cast<int>(affectedValueColumns.size()));
     affectedTable->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
@@ -216,9 +260,9 @@ void drawValidationWindow(QWidget *parent, const std::vector<wlogFileInfo> &file
     
     affectedRows->addWidget(affectedTable);
 
-    QPushButton *deleteSelcted = new QPushButton("Delete Selected Records");
-    deleteSelcted->setStyleSheet("QPushButton {border: 1px solid red;} QPushButton:hover {background-color: rgba(255, 0, 0, 40);} QPushButton:pressed { background-color: rgba(255, 0, 0, 90);}");
-    affectedRows->addWidget(deleteSelcted);
+    QPushButton *deleteSelected = new QPushButton("Back Up and Delete Selected Records");
+    deleteSelected->setStyleSheet("QPushButton {border: 1px solid red;} QPushButton:hover {background-color: rgba(255, 0, 0, 40);} QPushButton:pressed { background-color: rgba(255, 0, 0, 90);}");
+    affectedRows->addWidget(deleteSelected);
 
     //dialog buttons
     QDialogButtonBox *buttons = new QDialogButtonBox();
@@ -291,6 +335,10 @@ void drawValidationWindow(QWidget *parent, const std::vector<wlogFileInfo> &file
                 checkItem->setCheckState(Qt::Checked);
                 affectedTable->setItem(tableRow, 0, checkItem);
 
+                const size_t fileIndex = &file - files.data();
+                checkItem->setData(Qt::UserRole, static_cast<qulonglong>(fileIndex));
+                checkItem->setData(Qt::UserRole + 1, static_cast<qulonglong>(issue.row));
+
                 affectedTable->setItem(tableRow, 1, new QTableWidgetItem(fileName));
 
                 QString timeText;
@@ -322,6 +370,39 @@ void drawValidationWindow(QWidget *parent, const std::vector<wlogFileInfo> &file
         }
         affectedTable->setUpdatesEnabled(true);
         selectAllBox->setChecked(affectedTable->rowCount() > 0);
+    });
+
+    QObject::connect(deleteSelected, &QPushButton::clicked, &dialog, [&](){
+        std::map<size_t, std::set<uint64_t>> toDelete;
+        for (int r = 0; r < affectedTable->rowCount(); r++){
+            QTableWidgetItem *item = affectedTable->item(r, 0);
+            if (item && item->checkState() == Qt::Checked){
+                toDelete[item->data(Qt::UserRole).toULongLong()].insert(item->data(Qt::UserRole + 1).toULongLong());
+            }
+        }
+        if (toDelete.empty()){
+            return;
+        }
+        size_t total = 0;
+        for (const auto &entry : toDelete){
+            total += entry.second.size();
+        }
+        if (QMessageBox::warning(&dialog, "Delete records", QStringLiteral("Are you sure you want to permanently delete %1 record(s) from %2 file(s)?\n\nA backup of each file will be kept as a .wlog.bak").arg(total).arg(toDelete.size()), QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes){
+            return;
+        }
+        QStringList errors;
+        for (const auto &entry : toDelete){
+            QString error;
+            if (!deleteRecords(files[entry.first], entry.second, error)){
+                errors << QFileInfo(files[entry.first].path).fileName() + ": " + error;
+            }
+        }
+        onFilesChanged();
+        affectedTable->setRowCount(0);
+        selectAllBox->setChecked(false);
+        if (!errors.isEmpty()){
+            QMessageBox::warning(&dialog, "Some files could not be rewritten", errors.join("\n"));
+        }
     });
 
     mainLayout->addStretch();
