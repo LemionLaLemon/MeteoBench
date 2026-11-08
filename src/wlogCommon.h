@@ -20,6 +20,8 @@ namespace wlog{
         type dataType;
         displayFormat format;
         size_t offset;
+        double minDefault = NAN;
+        double maxDefault = NAN;
     };
     inline double readValue(const uint8_t *rec, const column &c){
         switch (c.dataType){
@@ -57,6 +59,7 @@ namespace wlog{
         checkScope scope;
         checkParam param;
         bool (*run)(const uint8_t *rec, const column *col, double param);
+        double (*defaultParam)(const column *col) = nullptr;
     };
     struct LogFormat{
         uint16_t version;
@@ -82,10 +85,18 @@ namespace wlog{
         return std::isnan(value) || value <= p;
     }
 
+    inline double defaultMin(const column *c){
+        return c->minDefault;
+    }
+
+    inline double defaultMax(const column *c){
+        return c->maxDefault;
+    }
+
     inline constexpr validationCheck numberChecks[] = {
         {"nan", "NaN records", "Value is not a number", "number", checkScope::column, checkParam::none, passNotNaN},
-        {"min", "Below minimum", "Value is below the limit", "number", checkScope::column, checkParam::number, passMin},
-        {"max", "Above maximum", "Value is above the limit", "number", checkScope::column, checkParam::number, passMax}
+        {"min", "Below minimum", "Value is below the limit", "number", checkScope::column, checkParam::number, passMin, defaultMin},
+        {"max", "Above maximum", "Value is above the limit", "number", checkScope::column, checkParam::number, passMax, defaultMax}
     };
     inline constexpr size_t numberCheckCount = sizeof(numberChecks) / sizeof(numberChecks[0]);
 }

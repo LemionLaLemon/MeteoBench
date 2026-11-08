@@ -22,6 +22,7 @@ qt_add_executable(meteobench
     src/drawDataTableTab.cpp
     src/settings.cpp
     src/validate.cpp
+    src/validation.cpp
 )
 
 target_compile_options(meteobench PRIVATE -Wall -Wextra)

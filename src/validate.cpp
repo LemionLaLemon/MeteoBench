@@ -12,6 +12,7 @@
 #include <qlabel.h>
 #include <qnamespace.h>
 #include <qobject.h>
+#include <qoverload.h>
 #include <qpushbutton.h>
 #include <qscrollarea.h>
 #include <qspinbox.h>
@@ -33,8 +34,18 @@ static void addCheckRow(QFormLayout *form, std::vector<checkWidget> &out, const 
     if (chk.param == wlog::checkParam::number){
         spin = new QDoubleSpinBox();
         spin->setRange(-1e9, 1e9);
+
+        if (chk.defaultParam && column >= 0){
+            double def = chk.defaultParam(&fmt->columns[column]);
+            if (!std::isnan(def)){
+                spin->setValue(def);
+            }
+        }
+
         spin->setEnabled(true);
-        QObject::connect(box, &QCheckBox::toggled, spin,  &QWidget::setEnabled);
+        QObject::connect(spin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), box, [box](){
+            box->setChecked(true);
+        });
         form->addRow(box, spin);
     }
     else {
@@ -132,6 +143,15 @@ void drawValidationWindow(QWidget *parent, const std::vector<wlogFileInfo> &file
 
     QPushButton *validateButton = buttons->addButton("Validate", QDialogButtonBox::ActionRole);
     buttons->addButton(QDialogButtonBox::Close);
+
+    QObject::connect(validateButton, &QPushButton::clicked, &dialog, [&](){
+        const std::vector<activeCheck> activeChecks = collect(selectionWidgets);
+        const std::vector<fileValidation> fileResults = validateFiles(files, activeChecks);
+
+        for (const fileValidation &fileResult : fileResults){
+            qDebug() << fileResult.file->path << fileResult.issues.size() << "issues";
+        }
+    });
 
     mainLayout->addStretch();
     mainLayoutOfLies->addWidget(buttons);

@@ -23,9 +23,9 @@ namespace wlogv2{
     }
     inline constexpr wlog::column columns[] = {
         {"time", "Time", "HH:mm:ss; dd MM yy", wlog::type::uint64, wlog::displayFormat::datetime, offsetof(record, timestamp)},
-        {"temperature", "Temperature", "DEG C", wlog::type::float32, wlog::displayFormat::number, offsetof(record, temperature)},
-        {"humidity", "Humidity", "% RH", wlog::type::float32, wlog::displayFormat::number, offsetof(record, humidity)},
-        {"pressure", "Pressure", "hPa", wlog::type::float32, wlog::displayFormat::number, offsetof(record, pressure)}
+        {"temperature", "Temperature", "DEG C", wlog::type::float32, wlog::displayFormat::number, offsetof(record, temperature), 0, 50},
+        {"humidity", "Humidity", "% RH", wlog::type::float32, wlog::displayFormat::number, offsetof(record, humidity), 0, 100},
+        {"pressure", "Pressure", "hPa", wlog::type::float32, wlog::displayFormat::number, offsetof(record, pressure), 800, 2000} //see wlogv1.h for notes on defaults
     };
     inline constexpr size_t columnCount = sizeof(columns) / sizeof(columns[0]);
     inline constexpr wlog::LogFormat logFormat = {2, 8, sizeof(record), columns, columnCount, validRecord};

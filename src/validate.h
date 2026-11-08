@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include "struc.h"
+#include <QDebug>
 
 class QWidget;
 
