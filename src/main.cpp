@@ -239,7 +239,7 @@ int main(int argc, char *argv[])
     app.setPalette(palette);
     app.setStyle("Windows"); // or fusion
 
-    QFile stylesheet("src/style.qss");
+    QFile stylesheet(":/style.qss");
     if (stylesheet.open(QIODevice::ReadOnly)){
         app.setStyleSheet(QString::fromUtf8(stylesheet.readAll()));
     }
@@ -257,11 +257,11 @@ int main(int argc, char *argv[])
     window.addToolBar(toolBar);
 
     // Actions
-    QAction *openAction = new QAction(QIcon("src/icons/Open.png"), "&Open", &window);
+    QAction *openAction = new QAction(QIcon(":/icons/Open.png"), "&Open", &window);
     openAction->setShortcut(QKeySequence::Open);
     openAction->setToolTip("Open WLOG files (Ctrl + O)");
 
-    QAction *validateAction = new QAction(QIcon("src/icons/Validate.png"), "&Validate", &window);
+    QAction *validateAction = new QAction(QIcon(":/icons/Validate.png"), "&Validate", &window);
     validateAction->setToolTip("Validate opened WLOG files\nChecks for corrupt file regions");
 
     QAction *aboutAction = new QAction("&About MeteoBench", &window);
@@ -344,7 +344,7 @@ int main(int argc, char *argv[])
         progress.setMinimumDuration(300);
 
         auto labelFor = [](const QString &name){
-            return QString("<table><tr><td><img src='src/icons/Clock.png'</td><td style='padding-left: 8px;'>Pre-analyzing files...<br>%1</td></tr></table>").arg(name);
+            return QString("<table><tr><td><img src=':/icons/Clock.png'</td><td style='padding-left: 8px;'>Pre-analyzing files...<br>%1</td></tr></table>").arg(name);
         };
 
         std::vector<wlogFileInfo> fresh;

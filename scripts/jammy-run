@@ -1,0 +1,13 @@
+#!/bin/sh
+# Usage: jammy-run <rootfs> <project dir> <cache dir> <command...>
+# Runs a shell command inside the Ubuntu 22.04 rootfs as (namespaced) root, no real root needed.
+R="$1"; P="$2"; C="$3"; shift 3
+exec unshare --map-auto --map-root-user --mount --pid --fork sh -c '
+  R="$1"; P="$2"; C="$3"; shift 3
+  mkdir -p "$R/project" "$R/cache"
+  mount --rbind /dev "$R/dev"
+  mount -t proc proc "$R/proc"
+  mount --bind "$P" "$R/project"
+  mount --bind "$C" "$R/cache"
+  exec chroot "$R" /usr/bin/env -i HOME=/root PATH=/opt/cmake/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8 /bin/bash -c "$*"
+' sh "$R" "$P" "$C" "$@"

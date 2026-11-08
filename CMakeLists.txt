@@ -25,5 +25,29 @@ qt_add_executable(meteobench
     src/validation.cpp
 )
 
+# Embed icons and stylesheet in the executable (accessed as :/icons/..., :/style.qss).
+qt_add_resources(meteobench "assets"
+    PREFIX "/"
+    BASE src
+    FILES
+        src/style.qss
+        src/icons/AutofitColumns.png
+        src/icons/Clock.png
+        src/icons/JumpToNextFile.png
+        src/icons/JumpToPreviousFile.png
+        src/icons/NormalizeColumns.png
+        src/icons/Open.png
+        src/icons/ResetLayout.png
+        src/icons/Validate.png
+)
+
 target_compile_options(meteobench PRIVATE -Wall -Wextra)
 target_link_libraries(meteobench PRIVATE Qt6::Widgets Qt6::PrintSupport)
+
+# GUI app: no console window on Windows.
+set_target_properties(meteobench PROPERTIES WIN32_EXECUTABLE TRUE)
+
+if(APPLE)
+    # Provides __isPlatformVersionAtLeast when cross-compiling without Darwin compiler-rt.
+    target_sources(meteobench PRIVATE src/macosAvailability.cpp)
+endif()

@@ -308,7 +308,7 @@ void drawValidationWindow(QWidget *parent, const std::vector<wlogFileInfo> &file
         QTimer poll;
         QObject::connect(&poll, &QTimer::timeout, [&](){
             if (!cancelRequested.load()){
-                progress.setLabelText(QString("<table><tr><td><img src='src/icons/Clock.png'</td><td style='padding-left: 8px;'>Validating files...<br>%1</td></tr></table>").arg(QFileInfo(files[currentFile.load()].path).fileName()));
+                progress.setLabelText(QString("<table><tr><td><img src=':/icons/Clock.png'</td><td style='padding-left: 8px;'>Validating files...<br>%1</td></tr></table>").arg(QFileInfo(files[currentFile.load()].path).fileName()));
                 progress.setValue(static_cast<int>(recordsDone.load() * 1000 / std::max<uint64_t>(totalRecords, 1)));
             }
             if (job.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready){

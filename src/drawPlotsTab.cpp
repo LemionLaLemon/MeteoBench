@@ -417,11 +417,11 @@ void drawPlotsTab(QWidget *plotsTab, WLogTableModel *model, QMenu *viewMenu, QTo
         }
     };
 
-    QAction *autoFitAction = viewMenu->addAction(QIcon("src/icons/AutofitColumns.png"), "Auto&Fit Columns");
+    QAction *autoFitAction = viewMenu->addAction(QIcon(":/icons/AutofitColumns.png"), "Auto&Fit Columns");
     actions.push_back(autoFitAction);
-    QAction *normalizeAction = viewMenu->addAction(QIcon("src/icons/NormalizeColumns.png"), "&Normalize Columns");
+    QAction *normalizeAction = viewMenu->addAction(QIcon(":/icons/NormalizeColumns.png"), "&Normalize Columns");
     actions.push_back(normalizeAction);
-    QAction *resetAction = viewMenu->addAction(QIcon("src/icons/ResetLayout.png"), "&Reset Layout");
+    QAction *resetAction = viewMenu->addAction(QIcon(":/icons/ResetLayout.png"), "&Reset Layout");
     actions.push_back(resetAction);
 
     QObject::connect(autoFitAction, &QAction::triggered, [plotTables, dataColumn, applyWidths](){

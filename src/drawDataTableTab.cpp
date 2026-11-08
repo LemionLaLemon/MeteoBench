@@ -16,14 +16,14 @@ void drawDataTableTab(QWidget *dataTableTab, WLogTableModel *model, QMenu *viewM
 
     layout->addWidget(table);
 
-    QAction *autoFitAction = viewMenu->addAction(QIcon("src/icons/AutofitColumns.png"), "Auto&Fit Columns");
+    QAction *autoFitAction = viewMenu->addAction(QIcon(":/icons/AutofitColumns.png"), "Auto&Fit Columns");
     actions.push_back(autoFitAction);
 
     QObject::connect(autoFitAction, &QAction::triggered, [table](){
         table->horizontalHeader()->resizeSections(QHeaderView::ResizeToContents);
     });
 
-    QAction *normalizeAction = viewMenu->addAction(QIcon("src/icons/NormalizeColumns.png"), "&Normalize Columns");
+    QAction *normalizeAction = viewMenu->addAction(QIcon(":/icons/NormalizeColumns.png"), "&Normalize Columns");
     actions.push_back(normalizeAction);
 
     QObject::connect(normalizeAction, &QAction::triggered, [table](){
@@ -34,9 +34,9 @@ void drawDataTableTab(QWidget *dataTableTab, WLogTableModel *model, QMenu *viewM
         }
     });
 
-    QAction *jumpToPreviousFileAction = recordsMenu->addAction(QIcon("src/icons/JumpToPreviousFile.png"), "Jump to &Previous File");
+    QAction *jumpToPreviousFileAction = recordsMenu->addAction(QIcon(":/icons/JumpToPreviousFile.png"), "Jump to &Previous File");
     actions.push_back(jumpToPreviousFileAction);
-    QAction *jumpToNextFileAction = recordsMenu->addAction(QIcon("src/icons/JumpToNextFile.png"), "Jump to &Next File");
+    QAction *jumpToNextFileAction = recordsMenu->addAction(QIcon(":/icons/JumpToNextFile.png"), "Jump to &Next File");
     actions.push_back(jumpToNextFileAction);
 
     QObject::connect(jumpToPreviousFileAction, &QAction::triggered, [table, model, &files](){
