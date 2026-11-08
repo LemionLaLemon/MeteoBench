@@ -84,14 +84,18 @@ static QGroupBox *buildFormatGroup(const wlog::LogFormat *fmt, std::vector<check
     }
 
     std::set<std::string> seen;
+    std::map<std::string, QFormLayout*> groupForms;
 
     for (size_t i = 0; i < fmt->checkCount; i++){
         const wlog::validationCheck &check = fmt->checks[i];
         
-        auto *sub = new QGroupBox(check.group);
-        auto *form = new QFormLayout(sub);
+        QFormLayout *&form = groupForms[check.group];
+        if (!form){
+            auto *sub = new QGroupBox(check.group);
+            form = new QFormLayout(sub);
+            layout->addWidget(sub);
+        }
         addCheckRow(form, out, fmt, check, -1);
-        layout->addWidget(sub);
     }
     return group;
 }
