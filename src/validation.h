@@ -23,8 +23,9 @@ struct fileValidation{
     std::vector<validationIssue> issues;
     bool discardedTail = false; //true if file resync na kaput (v1 records)
     uint64_t discardFromRow = 0;
+    bool stoppedEarly = false;
 };
 
 using validationProgress = std::function<bool(size_t fileIndex, uint64_t row)>;
 
-std::vector<fileValidation> validateFiles(const std::vector<wlogFileInfo> &files, const std::vector<activeCheck> &checks, const validationProgress &progress = {});
+std::vector<fileValidation> validateFiles(const std::vector<wlogFileInfo> &files, const std::vector<activeCheck> &checks, const validationProgress &progress = {}, size_t maxIssues = 10000000);

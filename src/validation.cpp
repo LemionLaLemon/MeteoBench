@@ -1,9 +1,10 @@
 #include "validation.h"
 #include "struc.h"
 
-std::vector<fileValidation> validateFiles(const std::vector<wlogFileInfo> &files, const std::vector<activeCheck> &checks, const validationProgress &progress){
+std::vector<fileValidation> validateFiles(const std::vector<wlogFileInfo> &files, const std::vector<activeCheck> &checks, const validationProgress &progress, size_t maxIssues){
     std::vector<fileValidation> results;
     results.reserve(files.size());
+    size_t totalIssues = 0;
 
     for (size_t fi = 0; fi < files.size(); fi++){
         const wlogFileInfo &file = files[fi];
@@ -32,6 +33,7 @@ std::vector<fileValidation> validateFiles(const std::vector<wlogFileInfo> &files
                 const wlog::column *col = a->column >= 0 ? &fmt.columns[a->column] : nullptr;
                 if (!a->check->run(rec, col, a->param)){
                     out.issues.push_back({row, a->check, a->column});
+                    totalIssues++;
                     failed = true;
                 }
             }
@@ -39,6 +41,12 @@ std::vector<fileValidation> validateFiles(const std::vector<wlogFileInfo> &files
             if (failed && !fmt.resyncable){
                 out.discardedTail = true;
                 out.discardFromRow = row;
+            }
+
+            if (totalIssues >= maxIssues){
+                out.stoppedEarly = true;
+                results.push_back(std::move(out));
+                return results;
             }
         }
         results.push_back(std::move(out));

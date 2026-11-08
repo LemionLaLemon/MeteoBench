@@ -279,18 +279,45 @@ void drawValidationWindow(QWidget *parent, const std::vector<wlogFileInfo> &file
             totalRecords += file.recordCount;
         }
 
+        std::atomic<uint64_t> recordsDone{0};
+        std::atomic<size_t> currentFile{0};
+        std::atomic<bool> cancelRequested{false};
+
         QProgressDialog progress("", "Cancel", 0, 1000, &dialog);
         progress.setWindowModality(Qt::WindowModal);
         progress.setMinimumDuration(300);
-
-        const std::vector<fileValidation> fileResults = validateFiles(files, activeChecks, [&](size_t fileIndex, uint64_t row){
-            if (row == 0){
-                progress.setLabelText(QString("Validating records...\n%1").arg(QFileInfo(files[fileIndex].path).fileName()));
-            }
-            progress.setValue(static_cast<int>((fileStart[fileIndex] + row) * 1000 / std::max<uint64_t>(totalRecords, 1)));
-            return !progress.wasCanceled();
+        progress.setAutoClose(false);
+        progress.setAutoReset(false);
+        QObject::connect(&progress, &QProgressDialog::canceled, [&](){
+            cancelRequested = true;
         });
-        progress.setValue(1000);
+
+        std::future<std::vector<fileValidation>> job = std::async(std::launch::async, [&](){
+            return validateFiles(files, activeChecks, [&](size_t fileIndex, uint64_t row){
+                currentFile = fileIndex;
+                recordsDone = fileStart[fileIndex] + row;
+                return !cancelRequested.load();
+            });
+        });
+
+        QEventLoop waitLoop;
+        QTimer poll;
+        QObject::connect(&poll, &QTimer::timeout, [&](){
+            if (!cancelRequested.load()){
+                progress.setLabelText(QString("<table><tr><td><img src='src/icons/Clock.png'</td><td style='padding-left: 8px;'>Validating files...<br>%1</td></tr></table>").arg(QFileInfo(files[currentFile.load()].path).fileName()));
+                progress.setValue(static_cast<int>(recordsDone.load() * 1000 / std::max<uint64_t>(totalRecords, 1)));
+            }
+            if (job.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready){
+                waitLoop.quit();
+            }
+        });
+        poll.start(50);
+        waitLoop.exec();
+        poll.stop();
+
+        const std::vector<fileValidation> fileResults = job.get();
+        progress.reset();
+        progress.hide();
 
         size_t totalIssues = 0;
         for (const fileValidation &fileResult : fileResults){
@@ -370,6 +397,13 @@ void drawValidationWindow(QWidget *parent, const std::vector<wlogFileInfo> &file
         }
         affectedTable->setUpdatesEnabled(true);
         selectAllBox->setChecked(affectedTable->rowCount() > 0);
+
+        for (const fileValidation &fileResult : fileResults){
+            if (fileResult.stoppedEarly){
+                QMessageBox::information(&dialog, "Too many issues", "Stopped after 10,000,000 issues. Delete these records, then validate again to continue.");
+                break;
+            }
+        }
     });
 
     QObject::connect(deleteSelected, &QPushButton::clicked, &dialog, [&](){
