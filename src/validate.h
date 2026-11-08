@@ -1,14 +1,7 @@
-#include <QWidget>
-#include <QHBoxLayout>
-#include <QVBoxLayout>
-#include <QDialog>
-#include <QGroupBox>
-#include <QLabel>
-#include <QRadioButton>
-#include <QSpacerItem>
-#include <QRect>
-#include <QColor>
-#include <QObject>
-#include <QScrollArea>
+#pragma once
+#include <vector>
+#include "struc.h"
 
-void drawValidationWindow(QWidget *parent);
+class QWidget;
+
+void drawValidationWindow(QWidget *parent, const std::vector<wlogFileInfo> &files);

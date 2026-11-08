@@ -264,7 +264,7 @@ int main(int argc, char *argv[])
     QAction *validateAction = new QAction(QIcon("src/icons/Validate.png"), "&Validate", &window);
     validateAction->setToolTip("Validate opened WLOG files\nChecks for corrupt file regions");
     QObject::connect(validateAction, &QAction::triggered, [&window](){
-        drawValidationWindow(&window);
+        drawValidationWindow(&window, files);
     });
 
     QAction *aboutAction = new QAction("&About MeteoBench", &window);

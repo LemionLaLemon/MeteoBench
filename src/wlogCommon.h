@@ -85,6 +85,7 @@ namespace wlog{
     inline constexpr validationCheck numberChecks[] = {
         {"nan", "NaN records", "Value is not a number", "number", checkScope::column, checkParam::none, passNotNaN},
         {"min", "Below minimum", "Value is below the limit", "number", checkScope::column, checkParam::number, passMin},
-        {"max", "Above maximum", "Value is above the limit", "number", checkScope::column, checkParam::number, passMin}
+        {"max", "Above maximum", "Value is above the limit", "number", checkScope::column, checkParam::number, passMax}
     };
+    inline constexpr size_t numberCheckCount = sizeof(numberChecks) / sizeof(numberChecks[0]);
 }

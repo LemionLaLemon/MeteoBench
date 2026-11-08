@@ -1,7 +1,6 @@
 #pragma once
 #include <vector>
-#include <string>
-#include <set>
+#include <functional>
 #include <cstdint>
 #include "wlogCommon.h"
 #include "struc.h"
