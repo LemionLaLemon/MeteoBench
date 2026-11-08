@@ -29,3 +29,4 @@ Built with Qt6 and QCustomPlot!!! (I hate C++'s std library so much im switching
 Uhm, there's not really much to say I'm going to finish this up later.
 Oh yea clicking any table row or anywhere on a plot will select that record on all other graphs and tables so you can compare that record to any other record with the normal cursor.
 There's technically touch compatibility, the tooltip shows up when you tap anywhere on the plot and I've used it on my tablet and it's fine, but generally not recommended. It's a horrible experience.
+
