@@ -3,19 +3,25 @@
 #include "validation.h"
 #include "wlogCommon.h"
 #include <algorithm>
+#include <qabstractitemview.h>
 #include <qboxlayout.h>
 #include <qcheckbox.h>
 #include <qdialog.h>
 #include <qdialogbuttonbox.h>
+#include <qfileinfo.h>
 #include <qformlayout.h>
 #include <qgroupbox.h>
+#include <qheaderview.h>
 #include <qlabel.h>
 #include <qnamespace.h>
 #include <qobject.h>
 #include <qoverload.h>
+#include <qprogressdialog.h>
 #include <qpushbutton.h>
 #include <qscrollarea.h>
+#include <qscrollbar.h>
 #include <qspinbox.h>
+#include <qtablewidget.h>
 #include <qwidget.h>
 
 struct checkWidget{
@@ -55,7 +61,7 @@ static void addCheckRow(QFormLayout *form, std::vector<checkWidget> &out, const 
 }
 
 static QGroupBox *buildFormatGroup(const wlog::LogFormat *fmt, std::vector<checkWidget> &out){
-    QGroupBox *group = new QGroupBox(QString("V%1 records").arg(fmt->version));
+    QGroupBox *group = new QGroupBox(QString("V%1 record options").arg(fmt->version));
     auto *layout = new QVBoxLayout(group);
 
     for (size_t col = 0; col < fmt->columnCount; col++){
@@ -109,8 +115,6 @@ void drawValidationWindow(QWidget *parent, const std::vector<wlogFileInfo> &file
     mainLayout->addLayout(validationSelection, 4); //4:6 split with affectedRows
 
     //validation options selection
-    validationSelection->addWidget(new QLabel("Record Validation Options"));
-
     QScrollArea *selectionScrollArea = new QScrollArea();
     selectionScrollArea->setWidgetResizable(true);
     validationSelection->addWidget(selectionScrollArea);
@@ -126,6 +130,31 @@ void drawValidationWindow(QWidget *parent, const std::vector<wlogFileInfo> &file
         }
     }
 
+    struct valueColumn{ 
+        const char *id; 
+        QString header; 
+    };
+    std::vector<valueColumn> affectedValueColumns;
+
+    for (const wlog::LogFormat *format : openFormats){
+        for (size_t c = 0; c < format->columnCount; c++) {
+            const wlog::column &column = format->columns[c];
+            if (column.format != wlog::displayFormat::number){
+                continue;
+            }
+            bool known = false;
+            for (const valueColumn &v : affectedValueColumns){
+                if (strcmp(v.id, column.id) == 0){
+                    known = true;
+                    break;
+                }
+            }
+            if (!known){
+                affectedValueColumns.push_back({column.id, QString("%1 (%2)").arg(QString(column.title), QString(column.unit))});
+            }
+        }
+    }
+
     selectionContentLayout->setSpacing(25);
 
     std::vector<checkWidget> selectionWidgets;
@@ -138,6 +167,59 @@ void drawValidationWindow(QWidget *parent, const std::vector<wlogFileInfo> &file
     QVBoxLayout *affectedRows = new QVBoxLayout();
     mainLayout->addLayout(affectedRows, 6);
 
+    QTableWidget *affectedTable = new QTableWidget(0, 4 + static_cast<int>(affectedValueColumns.size()));
+    affectedTable->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+    QStringList affectedHeaders = {"", "File", "Time", "Issue"};
+    affectedTable->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeMode::ResizeToContents);
+    QHeaderView *affectedHeader = affectedTable->horizontalHeader();
+    affectedHeader->setSectionResizeMode(0, QHeaderView::Fixed);
+    affectedHeader->setMinimumSectionSize(10);
+    affectedTable->setColumnWidth(0, affectedTable->style()->pixelMetric(QStyle::PM_IndicatorWidth) + 8);
+    affectedTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    affectedTable->verticalHeader()->hide();
+    affectedTable->horizontalHeader()->setStretchLastSection(true);
+    
+    QCheckBox *selectAllBox = new QCheckBox(affectedHeader);
+
+    auto placeSelectAll = [=](){
+        QSize  boxSize = selectAllBox->sizeHint();
+        selectAllBox->move(affectedHeader->sectionViewportPosition(0) + (affectedHeader->sectionSize(0) - boxSize.width()) / 2, (affectedHeader->height() - boxSize.height()) / 2);
+    };
+    placeSelectAll();
+    QObject::connect(affectedHeader, &QHeaderView::sectionResized, selectAllBox, placeSelectAll);
+    QObject::connect(affectedHeader, &QHeaderView::geometriesChanged, selectAllBox, placeSelectAll);
+    QObject::connect(affectedTable->horizontalScrollBar(), &QScrollBar::valueChanged, selectAllBox, placeSelectAll);
+
+    QObject::connect(selectAllBox, &QCheckBox::clicked, affectedTable, [=](bool on){
+        QSignalBlocker blocker(affectedTable);
+        for (int r = 0; r < affectedTable->rowCount(); r++){
+            affectedTable->item(r, 0)->setCheckState(on ?Qt::Checked : Qt::Unchecked);
+        }
+    });
+
+    QObject::connect(affectedTable, &QTableWidget::itemChanged, selectAllBox, [=](QTableWidgetItem *item){
+        if (item->column() != 0){
+            return;
+        }
+        bool all = affectedTable->rowCount() > 0;
+        for (int r = 0; r < affectedTable->rowCount() && all; r++){
+            all = affectedTable->item(r, 0)->checkState() == Qt::Checked;
+        }
+        QSignalBlocker blocker(selectAllBox);
+        selectAllBox->setChecked(all);
+    });
+
+    for (const valueColumn &v : affectedValueColumns){
+        affectedHeaders << v.header;
+    }
+    affectedTable->setHorizontalHeaderLabels(affectedHeaders);
+    
+    affectedRows->addWidget(affectedTable);
+
+    QPushButton *deleteSelcted = new QPushButton("Delete Selected Records");
+    deleteSelcted->setStyleSheet("QPushButton {border: 1px solid red;} QPushButton:hover {background-color: rgba(255, 0, 0, 40);} QPushButton:pressed { background-color: rgba(255, 0, 0, 90);}");
+    affectedRows->addWidget(deleteSelcted);
+
     //dialog buttons
     QDialogButtonBox *buttons = new QDialogButtonBox();
 
@@ -146,11 +228,100 @@ void drawValidationWindow(QWidget *parent, const std::vector<wlogFileInfo> &file
 
     QObject::connect(validateButton, &QPushButton::clicked, &dialog, [&](){
         const std::vector<activeCheck> activeChecks = collect(selectionWidgets);
-        const std::vector<fileValidation> fileResults = validateFiles(files, activeChecks);
+        uint64_t totalRecords = 0;
+        std::vector<uint64_t> fileStart;
+        for (const auto &file : files){
+            fileStart.push_back(totalRecords);
+            totalRecords += file.recordCount;
+        }
+
+        QProgressDialog progress("", "Cancel", 0, 1000, &dialog);
+        progress.setWindowModality(Qt::WindowModal);
+        progress.setMinimumDuration(300);
+
+        const std::vector<fileValidation> fileResults = validateFiles(files, activeChecks, [&](size_t fileIndex, uint64_t row){
+            if (row == 0){
+                progress.setLabelText(QString("Validating records...\n%1").arg(QFileInfo(files[fileIndex].path).fileName()));
+            }
+            progress.setValue(static_cast<int>((fileStart[fileIndex] + row) * 1000 / std::max<uint64_t>(totalRecords, 1)));
+            return !progress.wasCanceled();
+        });
+        progress.setValue(1000);
+
+        size_t totalIssues = 0;
+        for (const fileValidation &fileResult : fileResults){
+            totalIssues += fileResult.issues.size();
+        }
+
+        QSignalBlocker fillBocker(affectedTable);
+        affectedTable->setUpdatesEnabled(false);
+        for (int s = 1; s < affectedTable->columnCount(); s++){
+            affectedHeader->setSectionResizeMode(s, QHeaderView::Interactive);
+        }
+        affectedTable->setRowCount(static_cast<int>(totalIssues));
+        int tableRow = 0;
 
         for (const fileValidation &fileResult : fileResults){
-            qDebug() << fileResult.file->path << fileResult.issues.size() << "issues";
+            const wlogFileInfo &file = *fileResult.file;
+            const wlog::LogFormat &format = *file.format;
+            const QString fileName = QFileInfo(file.path).fileName();
+
+            std::vector<int> valueSource(affectedValueColumns.size(), -1);
+            for (size_t v = 0; v < affectedValueColumns.size(); v++){
+                for (size_t c = 0; c < format.columnCount; c++){
+                    if (strcmp(format.columns[c].id, affectedValueColumns[v].id) == 0){
+                        valueSource[v] = static_cast<int>(c);
+                    }
+                }
+            }
+
+            int timeColumn = -1;
+            for (size_t c = 0; c < format.columnCount; c++){
+                if (format.columns[c].format == wlog::displayFormat::datetime){
+                    timeColumn = static_cast<int>(c);
+                    break;
+                }
+            }
+
+            for (const validationIssue &issue : fileResult.issues){
+                const uint8_t *rec = file.mapped + file.dataOffset + issue.row * file.recordSize;
+
+                auto *checkItem = new QTableWidgetItem();
+                checkItem->setFlags(Qt::ItemIsUserCheckable | Qt::ItemIsEnabled);
+                checkItem->setCheckState(Qt::Checked);
+                affectedTable->setItem(tableRow, 0, checkItem);
+
+                affectedTable->setItem(tableRow, 1, new QTableWidgetItem(fileName));
+
+                QString timeText;
+                if (timeColumn >= 0){
+                    double t = wlog::readValue(rec, format.columns[timeColumn]);
+                    timeText = QDateTime::fromSecsSinceEpoch(static_cast<qint64>(t)).toString(QString(format.columns[timeColumn].unit));
+                }
+                affectedTable->setItem(tableRow, 2, new QTableWidgetItem(timeText));
+
+                QString issueText = QString(issue.check->title);
+                if (issue.column >= 0){
+                    issueText = QString("%1: %2").arg(QString(format.columns[issue.column].title), issueText);
+                }
+                affectedTable->setItem(tableRow, 3, new QTableWidgetItem(issueText));
+
+                for (size_t v = 0; v < affectedValueColumns.size(); v++){
+                    QString valueText;
+                    if (valueSource[v] >= 0){
+                        valueText = QString::number(wlog::readValue(rec, format.columns[valueSource[v]]), 'f', 2);
+                    }
+                    affectedTable->setItem(tableRow, 4 + static_cast<int>(v), new QTableWidgetItem(valueText));
+                }
+                tableRow++;
+            }
         }
+
+        for (int s = 1; s < affectedTable->columnCount(); s++){
+            affectedHeader->setSectionResizeMode(s, QHeaderView::ResizeToContents);
+        }
+        affectedTable->setUpdatesEnabled(true);
+        selectAllBox->setChecked(affectedTable->rowCount() > 0);
     });
 
     mainLayout->addStretch();
