@@ -224,7 +224,7 @@ void drawPlotsTab(QWidget *plotsTab, WLogTableModel *model, QMenu *viewMenu, QTo
             if (time.isEmpty()){
                 time = QDateTime::fromSecsSinceEpoch(static_cast<qint64>(ts)).toString("yyyy-MM-dd HH:mm:ss");
             }
-           lines += QString("\n%1: %3").arg(model->headerData(p.column, Qt::Horizontal).toString()).arg(std::isfinite(value) ? QString::number(value, 'f', 2) : QString("NaN"));
+           lines += QString("\n%1: %2").arg(model->headerData(p.column, Qt::Horizontal).toString()).arg(std::isfinite(value) ? QString::number(value, 'f', 2) : QString("NaN"));
 
             p.graph->replot(QCustomPlot::rpQueuedReplot);
         }

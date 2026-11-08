@@ -6,7 +6,7 @@ void computeStats(wlogFileInfo &info){
     for (uint64_t row = 0; row < info.recordCount; row++){
         const uchar *rec = info.mapped + info.dataOffset + row * info.recordSize;
 
-        for (size_t c = 0; c < wlogv1::columnCount; c++){
+        for (size_t c = 0; c < info.format->columnCount; c++){
             double v = wlog::readValue(rec, info.format->columns[c]);
 
             if (!std::isfinite(v)){

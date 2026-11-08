@@ -78,6 +78,7 @@
 #include "drawDataTableTab.h"
 #include "formats.h"
 #include "settings.h"
+#include "validate.h"
 
 std::vector<wlogFileInfo> files;
 std::vector<MasterColumn> master;
@@ -262,7 +263,9 @@ int main(int argc, char *argv[])
 
     QAction *validateAction = new QAction(QIcon("src/icons/Validate.png"), "&Validate", &window);
     validateAction->setToolTip("Validate opened WLOG files\nChecks for corrupt file regions");
-    validateAction->setEnabled(false);
+    QObject::connect(validateAction, &QAction::triggered, [&window](){
+        drawValidationWindow(&window);
+    });
 
     QAction *aboutAction = new QAction("&About MeteoBench", &window);
     QObject::connect(aboutAction, &QAction::triggered, [&window](){About(&window);});

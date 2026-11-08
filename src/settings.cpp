@@ -42,7 +42,7 @@ void drawSettingsWindow(QWidget *parent, QSettings *settings){
 
     //temperature format
     QHBoxLayout *temperatureSelect = new QHBoxLayout();
-    temperatureSelect->addWidget(new QLabel("Temperature Format"));
+    temperatureSelect->addWidget(new QLabel("Temperature Format of Data"));
     temperatureSelect->addSpacing(50);
     localeLayout->addLayout(temperatureSelect);
     
@@ -74,6 +74,7 @@ void drawSettingsWindow(QWidget *parent, QSettings *settings){
     appearanceLayout->addLayout(selectedColorSelect);
 
     QPushButton *selectColor = new QPushButton();
+    selectColor->setEnabled(false);
     selectColor->setFixedSize(60, 30);
     selectedColorSelect->addWidget(selectColor);
 
@@ -90,9 +91,9 @@ void drawSettingsWindow(QWidget *parent, QSettings *settings){
 
     selectedColorSelect->addStretch();
 
+    //tie in later (custom selected color selection)
     //QColorDialog *selectedColorSelection = new QColorDialog();
     //selectedColorSelect->addWidget(selectedColorSelection);
-
 
     mainLayout->addStretch();
 
@@ -101,7 +102,7 @@ void drawSettingsWindow(QWidget *parent, QSettings *settings){
         settings->setValue("appearance/selectedColor", selected.name());
     };
 
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Apply | QDialogButtonBox::Cancel);
+    QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Apply | QDialogButtonBox::Cancel);
     mainLayout->addWidget(buttons);
 
     QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, [&](){
