@@ -27,9 +27,12 @@ new!!!:
 - Validation of wlog v2 files (parameters NaN and out of range, CRC, and rudimentary record signatures)
 
 Features not currently included:
-- Analysis (residual plots, dew point, averages, plotting derivatives)
+- Proper Analysis (residual plots, dew point, averages, plotting derivatives)
+
+Some basic analysis exists within plots (min, max, avg, avg by file)
 
 Built with Qt6 and QCustomPlot!!! (I hate C++'s std library so much im switching to python /j)
+wlogv1 and wlogv2 formats were made by me, all parsing, verification, repair is written by me as well without use of external libraries (except MAYBE algorithm, map, and set, but that's just C++)
 Uhm, there's not really much to say I'm going to finish this up later.
 Oh yea clicking any table row or anywhere on a plot will select that record on all other graphs and tables so you can compare that record to any other record with the normal cursor.
 There's technically touch compatibility, the tooltip shows up when you tap anywhere on the plot and I've used it on my tablet and it's fine, but generally not recommended. It's a horrible experience.
