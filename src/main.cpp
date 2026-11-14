@@ -83,11 +83,6 @@
 std::vector<wlogFileInfo> files;
 std::vector<MasterColumn> master;
 
-QStringList selectedFiles = {
-    "/home/lemion/Documents/Lemion Industries Meteobench/samplecontent/2026-07-31.wlog",
-    "/home/lemion/Documents/Lemion Industries Meteobench/samplecontent/2026-08-01.wlog"
-};
-
 bool openWlog(const QString &path, wlogFileInfo &info){
     info.file = std::make_unique<QFile>(path);
     QFile &file = *info.file;
@@ -204,7 +199,7 @@ void About(QWidget *window){
     QMessageBox::about(
         window,
         "About MeteoBench",
-        "MeteoBench v1.0.0\n"
+        "MeteoBench v1.1.1\n"
         "Meteorological Data Analysis Software\n"
         "Copyright © 2026 Lemion Industries\n\n"
         "Meow mraaoaw mew mrrrp :3"
@@ -213,8 +208,6 @@ void About(QWidget *window){
 
 int main(int argc, char *argv[])
 {
-    buildFileIndex(selectedFiles, files);
-    buildMaster(files, master);
     // App setup
     QApplication app(argc, argv);
     QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Light);
