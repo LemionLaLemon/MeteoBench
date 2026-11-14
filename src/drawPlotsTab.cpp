@@ -181,7 +181,7 @@ void drawPlotsTab(QWidget *plotsTab, WLogTableModel *model, QMenu *viewMenu, QTo
         plots.push_back({graph, tracer, cursor, selectedRecordCursor, column});
     }
     horizontal->setSizes({250, 750});
-    QList<int> equal(model->columnCount() - 1, 1);
+    QList<int> equal(qMax(0, model->columnCount() - 1), 1);
     tables->setSizes(equal);
     graphs->setSizes(equal);
 
@@ -445,6 +445,9 @@ void drawPlotsTab(QWidget *plotsTab, WLogTableModel *model, QMenu *viewMenu, QTo
     });
 
     QObject::connect(resetAction, &QAction::triggered, [plotTables, applyWidths, horizontal, tables, graphs](){
+        if (plotTables.empty()){
+            return;
+        }
         int w = plotTables.front()->horizontalHeader()->defaultSectionSize();
         applyWidths(w, w);
         horizontal->setSizes({250, 750});
